@@ -395,16 +395,6 @@ fs = ">=2.4,<3.0"
 six = ">=1.10,<2.0"
 
 [[package]]
-name = "future"
-version = "0.18.3"
-description = "Clean single-source support for Python 3 and 2"
-optional = false
-python-versions = ">=2.6, !=3.0.*, !=3.1.*, !=3.2.*"
-files = [
-    {file = "future-0.18.3.tar.gz", hash = "sha256:34a17436ed1e96697a86f9de3d15a3b0be01d8bc8de9c1dffd59fb8234ed5307"},
-]
-
-[[package]]
 name = "google-api-core"
 version = "2.11.1"
 description = "Google API client core library"
@@ -418,8 +408,14 @@ files = [
 [package.dependencies]
 google-auth = ">=2.14.1,<3.0.dev0"
 googleapis-common-protos = ">=1.56.2,<2.0.dev0"
-grpcio = {version = ">=1.33.2,<2.0dev", optional = true, markers = "extra == \"grpc\""}
-grpcio-status = {version = ">=1.33.2,<2.0.dev0", optional = true, markers = "extra == \"grpc\""}
+grpcio = [
+    {version = ">=1.33.2,<2.0dev", optional = true, markers = "extra == \"grpc\""},
+    {version = ">=1.49.1,<2.0dev", optional = true, markers = "python_version >= \"3.11\" and extra == \"grpc\""},
+]
+grpcio-status = [
+    {version = ">=1.33.2,<2.0.dev0", optional = true, markers = "extra == \"grpc\""},
+    {version = ">=1.49.1,<2.0.dev0", optional = true, markers = "python_version >= \"3.11\" and extra == \"grpc\""},
+]
 protobuf = ">=3.19.5,<3.20.0 || >3.20.0,<3.20.1 || >3.20.1,<4.21.0 || >4.21.0,<4.21.1 || >4.21.1,<4.21.2 || >4.21.2,<4.21.3 || >4.21.3,<4.21.4 || >4.21.4,<4.21.5 || >4.21.5,<5.0.0.dev0"
 requests = ">=2.18.0,<3.0.0.dev0"
 
@@ -468,7 +464,10 @@ files = [
 google-api-core = {version = ">=1.31.5,<2.0.dev0 || >2.3.0,<3.0.0dev", extras = ["grpc"]}
 google-cloud-core = ">=1.6.0,<3.0.0dev"
 google-resumable-media = ">=0.6.0,<3.0dev"
-grpcio = ">=1.47.0,<2.0dev"
+grpcio = [
+    {version = ">=1.47.0,<2.0dev", markers = "python_version < \"3.11\""},
+    {version = ">=1.49.1,<2.0dev", markers = "python_version >= \"3.11\""},
+]
 packaging = ">=20.0.0"
 proto-plus = ">=1.15.0,<2.0.0dev"
 protobuf = ">=3.19.5,<3.20.0 || >3.20.0,<3.20.1 || >3.20.1,<4.21.0 || >4.21.0,<4.21.1 || >4.21.1,<4.21.2 || >4.21.2,<4.21.3 || >4.21.3,<4.21.4 || >4.21.4,<4.21.5 || >4.21.5,<5.0.0dev"
@@ -1057,24 +1056,6 @@ files = [
 pyasn1 = ">=0.4.6,<0.6.0"
 
 [[package]]
-name = "pybigquery"
-version = "0.10.2"
-description = "OBSOLETE SQLAlchemy dialect for BigQuery"
-optional = false
-python-versions = ">=3.6, <3.10"
-files = [
-    {file = "pybigquery-0.10.2-py2.py3-none-any.whl", hash = "sha256:de644d6fa916f4fbe824641588ae3fa78743daf72d359acd2f76b5cd141a9f33"},
-    {file = "pybigquery-0.10.2.tar.gz", hash = "sha256:d9e9f86ab96eb604633eb92cda5d9f1e8c034369e783fdc8222143bb841e68c8"},
-]
-
-[package.dependencies]
-future = "*"
-google-api-core = ">=1.30.0"
-google-auth = ">=1.25.0,<3.0.0dev"
-google-cloud-bigquery = ">=2.19.0"
-sqlalchemy = ">=1.2.0,<1.5.0dev"
-
-[[package]]
 name = "pycparser"
 version = "2.21"
 description = "C parser in Python"
@@ -1565,6 +1546,31 @@ pymysql = ["pymysql", "pymysql (<1)"]
 sqlcipher = ["sqlcipher3-binary"]
 
 [[package]]
+name = "sqlalchemy-bigquery"
+version = "1.8.0"
+description = "SQLAlchemy dialect for BigQuery"
+optional = false
+python-versions = ">=3.7, <3.12"
+files = [
+    {file = "sqlalchemy-bigquery-1.8.0.tar.gz", hash = "sha256:fdc58cc23415b9e251dc90a97052a4831894c15b1b54911909d746696eba6f38"},
+    {file = "sqlalchemy_bigquery-1.8.0-py2.py3-none-any.whl", hash = "sha256:d755a9f820c373858cc799fd4b03d334fb1c372e21a6d224f82eb4f10db00124"},
+]
+
+[package.dependencies]
+google-api-core = ">=1.31.5,<2.0.dev0 || >2.3.0,<3.0.0dev"
+google-auth = ">=1.25.0,<3.0.0dev"
+google-cloud-bigquery = ">=2.25.2,<4.0.0dev"
+packaging = "*"
+sqlalchemy = ">=1.2.0,<2.0.0dev"
+
+[package.extras]
+alembic = ["alembic"]
+all = ["GeoAlchemy2", "alembic", "google-cloud-bigquery-storage (>=2.0.0,<3.0.0dev)", "grpcio (>=1.47.0,<2.0dev)", "grpcio (>=1.49.1,<2.0dev)", "packaging", "pyarrow (>=3.0.0)", "pytz", "shapely"]
+bqstorage = ["google-cloud-bigquery-storage (>=2.0.0,<3.0.0dev)", "grpcio (>=1.47.0,<2.0dev)", "grpcio (>=1.49.1,<2.0dev)", "pyarrow (>=3.0.0)"]
+geography = ["GeoAlchemy2", "shapely"]
+tests = ["packaging", "pytz"]
+
+[[package]]
 name = "tomli"
 version = "2.0.1"
 description = "A lil' TOML parser"
@@ -1622,5 +1628,5 @@ s3 = ["fs-s3fs"]
 
 [metadata]
 lock-version = "2.0"
-python-versions = ">=3.7.1,<3.10"
-content-hash = "1f472019b69060e186ee64faeed96ae04fb2c0a678a09bcdd2841affd9fe7ac6"
+python-versions = "<3.12,>=3.7.1"
+content-hash = "f6cd7230e7096bf8f24c3af6de4164a35a6cb2d6651ffbe018a654543548e9ff"
