@@ -14,13 +14,16 @@ packages = [
 
 [tool.poetry.dependencies]
 python = "<3.12,>=3.7.1"
-singer-sdk = { version="^0.31.1" }
 fs-s3fs = { version = "^1.1.1", optional = true }
 sqlalchemy-bigquery = "^1.8.0"
+google-cloud-bigquery-storage = "^2.24.0"
+
+# our fork, which implements a drastic parallelism improvement to introspection
+singer-sdk = {git = "ssh://git@github.com/akkio-inc/singer-sdk", rev = "cb629da23dfc8da2f394a3f3047d88eba59a4b3a"}
 
 [tool.poetry.group.dev.dependencies]
 pytest = "^7.4.4"
-singer-sdk = { version="^0.31.1", extras = ["testing"] }
+snakeviz = "^2.2.0"
 
 [tool.poetry.extras]
 s3 = ["fs-s3fs"]
