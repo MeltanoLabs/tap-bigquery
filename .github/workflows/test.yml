@@ -1,28 +1,20 @@
-### A CI workflow template that runs linting and python testing
-name: Test tap-bigquery
+name: (CI) tap-bigquery
 
-on: [push]
+on:
+  push:
+    branches:
+      - *
 
 jobs:
   pytest:
     runs-on: ubuntu-latest
-    env:
-      GITHUB_TOKEN: ${{secrets.GITHUB_TOKEN}}
-    strategy:
-      matrix:
-        python-version: ["3.7", "3.8", "3.9", "3.10", "3.11"]
     steps:
-    - uses: actions/checkout@v3
-    - name: Set up Python ${{ matrix.python-version }}
-      uses: actions/setup-python@v4
+    - uses: actions/checkout@v4
+    - run: pipx install poetry
+    - uses: actions/setup-python@v5
       with:
-        python-version: ${{ matrix.python-version }}
-    - name: Install Poetry
-      run: |
-        pip install poetry
-    - name: Install dependencies
-      run: |
-        poetry install
-    - name: Test with pytest
-      run: |
-        poetry run pytest
+        cache: poetry
+    - run: poetry install
+    - run: poetry run ruff
+    - run: poetry run mypy
+    - run: poetry run pytest
