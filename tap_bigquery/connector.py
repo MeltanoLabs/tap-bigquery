@@ -3,11 +3,13 @@
 from __future__ import annotations
 
 import sqlalchemy
+import json
+import logging
 from singer_sdk import SQLConnector
 from singer_sdk import typing as th  # JSON schema typing helpers
 from sqlalchemy.engine import Engine
 from sqlalchemy.engine.reflection import Inspector
-
+LOGGER = logging.getLogger(__name__)
 
 class BigQueryConnector(SQLConnector):
     """Connects to the BigQuery SQL source."""
@@ -26,14 +28,25 @@ class BigQueryConnector(SQLConnector):
         Returns:
             A new SQLAlchemy Engine.
         """
-        if self.config.get("credentials_path"):
-            return sqlalchemy.create_engine(
-                self.sqlalchemy_url,
-                echo=False,
-                credentials_path=self.config.get("credentials_path"),
-                # json_serializer=self.serialize_json,
-                # json_deserializer=self.deserialize_json,
-            )
+        if self.config.get("google_application_credentials"):
+            try:
+                credentials_info=json.loads(self.config.get("google_application_credentials"))
+                return sqlalchemy.create_engine(
+                    self.sqlalchemy_url,
+                    echo=False,
+                    credentials_info=credentials_info,
+                    # json_serializer=self.serialize_json,
+                    # json_deserializer=self.deserialize_json,
+                )
+            except (TypeError, json.decoder.JSONDecodeError):
+                LOGGER.warn("'google_application_credentials' not valid json")
+                return sqlalchemy.create_engine(
+                    self.sqlalchemy_url,
+                    echo=False,
+                    credentials_path=self.config.get("google_application_credentials"),
+                    # json_serializer=self.serialize_json,
+                    # json_deserializer=self.deserialize_json,
+                )
         else:
             return sqlalchemy.create_engine(
                 self.sqlalchemy_url,

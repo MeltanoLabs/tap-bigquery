@@ -18,13 +18,15 @@ class TapBigQuery(SQLTap):
             "project_id",
             th.StringType,
             required=True,
+            secret=False,
             description="GCP Project",
         ),
         th.Property(
-            "credentials_path",
+            "google_application_credentials",
             th.StringType,
-            required=False,
-            description="The path to the service account credentials file.",
+            required=True,
+            secret=True,
+            description="JSON content or path to service account credentials.",
         ),
         th.Property(
             "filter_schemas",
