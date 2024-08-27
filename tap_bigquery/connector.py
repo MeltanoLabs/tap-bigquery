@@ -184,7 +184,7 @@ class BigQueryConnector(SQLConnector):
         #
         # Let's strip `schema_name` prefix on the inspection
 
-        return [
+        objects = [
             (table_name.split(".")[-1], is_view)
             for (table_name, is_view) in super().get_object_names(
                 engine,
@@ -192,6 +192,11 @@ class BigQueryConnector(SQLConnector):
                 schema_name,
             )
         ]
+        if "filter_datasets" in self.config and len(self.config["filter_datasets"]) != 0:
+            tables = self.config["filter_datasets"]
+            return [object for object in objects if object[0] in tables]
+
+        return objects
 
     def get_schema_names(self, engine: Engine, inspected: Inspector) -> list[str]:
         """Return a list of schema names in DB, or overrides with user-provided values.

@@ -38,6 +38,16 @@ class TapBigQuery(SQLTap):
                 "automatically determines ALL available BigQuery schemas."
             ),
         ),
+        th.Property(
+            "filter_datasets",
+            th.ArrayType(th.StringType),
+            required=False,
+            description=(
+                "If an array of dataset names is provided, the tap will only process the"
+                " specified BigQuery datasets and ignore others. If left blank, the tap "
+                "automatically determines ALL available BigQuery datasets."
+            ),
+        ),
     ).to_dict()
 
     default_stream_class: type[SQLStream] = BigQueryStream
