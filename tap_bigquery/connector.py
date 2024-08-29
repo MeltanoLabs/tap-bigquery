@@ -58,6 +58,29 @@ class BigQueryConnector(SQLConnector):
                 # json_deserializer=self.deserialize_json,
             )
 
+    def to_array_type(
+        self,
+        sql_type: (
+            str  # noqa: ANN401
+            | sqlalchemy.types.TypeEngine
+            | type[sqlalchemy.types.TypeEngine]
+            | t.Any
+        ),
+    ) -> th.ArrayType:
+        if (isinstance(sql_type, ARRAY)):
+            if (isinstance(sql_type.item_type, STRING)):
+                jsonschema = th.ArrayType(th.StringType)
+            if (isinstance(sql_type.item_type, NUMERIC)):
+                jsonschema = th.ArrayType(th.NumberType)
+            if (isinstance(sql_type.item_type, STRUCT)):
+                properties = self.struct_to_properties(sql_type.item_type)
+                jsonschema = th.ArrayType(
+                    th.ObjectType(
+                        *properties,
+                    )
+                )
+            return jsonschema
+
     def struct_to_properties(
         self,
         sql_type: (
@@ -79,9 +102,8 @@ class BigQueryConnector(SQLConnector):
                     properties.append(th.Property(name, th.NumberType))
                 if (isinstance(type_, STRUCT)):
                     properties.append(th.Property(name, th.ObjectType(*self.struct_to_properties(type_))))
-                    # properties.extend(self.struct_to_properties(type_))
-                    # innerp = self.struct_to_properties(type_)
-                    # properties.append(th.ObjectType(*innerp))
+                if (isinstance(type_, ARRAY)):
+                    properties.append(th.Property(name, self.to_array_type(type_)))
         return properties
 
     def to_jsonschema_type(
@@ -94,22 +116,25 @@ class BigQueryConnector(SQLConnector):
             | t.Any
         ),
     ) -> dict:
-        LOGGER.debug("%s: Type %s, Array: %s, Tuple: %s", column_name, sql_type, sql_type._is_array, sql_type._is_tuple_type)
-        if (isinstance(sql_type, ARRAY)):
-            LOGGER.debug("%s: Item type: %s", column_name, sql_type.item_type)
-            if (isinstance(sql_type.item_type, STRING)):
-                jsonschema = th.ArrayType(th.StringType)
-            if (isinstance(sql_type.item_type, NUMERIC)):
-                jsonschema = th.ArrayType(th.NumberType)
-            if (isinstance(sql_type.item_type, STRUCT)):
-                properties = self.struct_to_properties(sql_type.item_type)
-                jsonschema = th.ArrayType(
-                    th.ObjectType(
-                        *properties,
-                    )
-                )
-            return jsonschema.type_dict
+        LOGGER.error("%s: Type %s, Array: %s, Tuple: %s", column_name, sql_type, sql_type._is_array, sql_type._is_tuple_type)
+        # if (isinstance(sql_type, ARRAY)):
+        #     LOGGER.debug("%s: Item type: %s", column_name, sql_type.item_type)
+        #     if (isinstance(sql_type.item_type, STRING)):
+        #         jsonschema = th.ArrayType(th.StringType)
+        #     if (isinstance(sql_type.item_type, NUMERIC)):
+        #         jsonschema = th.ArrayType(th.NumberType)
+        #     if (isinstance(sql_type.item_type, STRUCT)):
+        #         properties = self.struct_to_properties(sql_type.item_type)
+        #         jsonschema = th.ArrayType(
+        #             th.ObjectType(
+        #                 *properties,
+        #             )
+        #         )
+        #     return jsonschema.type_dict
 
+        if (isinstance(sql_type, ARRAY)):
+            jsonschema = self.to_array_type(sql_type)
+            return jsonschema.type_dict
         if (isinstance(sql_type, STRUCT)):
             properties = self.struct_to_properties(sql_type)
             jsonschema = th.ObjectType(
