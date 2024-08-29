@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import typing as t
 import sqlalchemy
 import json
 import logging
@@ -10,7 +11,7 @@ from singer_sdk._singerlib import CatalogEntry, MetadataMapping, Schema
 from singer_sdk import typing as th  # JSON schema typing helpers
 from sqlalchemy.engine import Engine
 from sqlalchemy.engine.reflection import Inspector
-from sqlalchemy_bigquery import STRUCT
+from sqlalchemy_bigquery import STRUCT, ARRAY, NUMERIC, STRING, INTEGER, INT64, FLOAT, FLOAT64
 LOGGER = logging.getLogger(__name__)
 
 class BigQueryConnector(SQLConnector):
@@ -57,15 +58,60 @@ class BigQueryConnector(SQLConnector):
                 # json_deserializer=self.deserialize_json,
             )
 
+    def struct_to_properties(
+        self,
+        sql_type: (
+            str  # noqa: ANN401
+            | sqlalchemy.types.TypeEngine
+            | type[sqlalchemy.types.TypeEngine]
+            | t.Any
+        ),
+    ) -> dict:
+        properties = []
+        if (isinstance(sql_type, STRUCT)):
+            for name, type_ in sql_type._STRUCT_fields:
+                LOGGER.debug("%s: property type: %s", name, type_)
+                if (isinstance(type_, STRING)):
+                    properties.append(th.Property(name, th.StringType))
+                if (isinstance(type_, INTEGER) or isinstance(type_, INT64)):
+                    properties.append(th.Property(name, th.IntegerType))
+                if (isinstance(type_, NUMERIC) or isinstance(type_, FLOAT) or isinstance(type_, FLOAT64)):
+                    properties.append(th.Property(name, th.NumberType))
+                if (isinstance(type_, STRUCT)):
+                    properties.append(th.Property(name, th.ObjectType(*self.struct_to_properties(type_))))
+                    # properties.extend(self.struct_to_properties(type_))
+                    # innerp = self.struct_to_properties(type_)
+                    # properties.append(th.ObjectType(*innerp))
+        return properties
+
     def to_jsonschema_type(
         self,
-        sql_type,
+        column_name,
+        sql_type: (
+            str  # noqa: ANN401
+            | sqlalchemy.types.TypeEngine
+            | type[sqlalchemy.types.TypeEngine]
+            | t.Any
+        ),
     ) -> dict:
-        LOGGER.debug("Type %s %s", sql_type, isinstance(sql_type, STRUCT))
+        LOGGER.debug("%s: Type %s, Array: %s, Tuple: %s", column_name, sql_type, sql_type._is_array, sql_type._is_tuple_type)
+        if (isinstance(sql_type, ARRAY)):
+            LOGGER.debug("%s: Item type: %s", column_name, sql_type.item_type)
+            if (isinstance(sql_type.item_type, STRING)):
+                jsonschema = th.ArrayType(th.StringType)
+            if (isinstance(sql_type.item_type, NUMERIC)):
+                jsonschema = th.ArrayType(th.NumberType)
+            if (isinstance(sql_type.item_type, STRUCT)):
+                properties = self.struct_to_properties(sql_type.item_type)
+                jsonschema = th.ArrayType(
+                    th.ObjectType(
+                        *properties,
+                    )
+                )
+            return jsonschema.type_dict
+
         if (isinstance(sql_type, STRUCT)):
-            properties = []
-            for name, type_ in sql_type._STRUCT_fields:
-                properties.append(th.Property(name, th.StringType))
+            properties = self.struct_to_properties(sql_type)
             jsonschema = th.ObjectType(
                 *properties,
             )
@@ -124,7 +170,7 @@ class BigQueryConnector(SQLConnector):
         for column_def in inspected.get_columns(table_name, schema=schema_name):
             column_name = column_def["name"]
             is_nullable = column_def.get("nullable", False)
-            jsonschema_type: dict = self.to_jsonschema_type(column_def["type"])
+            jsonschema_type: dict = self.to_jsonschema_type(column_name, column_def["type"])
             if ("." not in column_name):
                 table_schema.append(
                     th.Property(
