@@ -12,6 +12,7 @@ from singer_sdk import typing as th  # JSON schema typing helpers
 from sqlalchemy.engine import Engine
 from sqlalchemy.engine.reflection import Inspector
 from sqlalchemy_bigquery import STRUCT, ARRAY, NUMERIC, STRING, INTEGER, INT64, FLOAT, FLOAT64
+
 LOGGER = logging.getLogger(__name__)
 
 class BigQueryConnector(SQLConnector):
@@ -42,7 +43,7 @@ class BigQueryConnector(SQLConnector):
                     # json_deserializer=self.deserialize_json,
                 )
             except (TypeError, json.decoder.JSONDecodeError):
-                LOGGER.warn("'google_application_credentials' not valid json")
+                LOGGER.warning("'google_application_credentials' not valid json")
                 return sqlalchemy.create_engine(
                     self.sqlalchemy_url,
                     echo=False,
@@ -70,6 +71,10 @@ class BigQueryConnector(SQLConnector):
         if (isinstance(sql_type, ARRAY)):
             if (isinstance(sql_type.item_type, STRING)):
                 jsonschema = th.ArrayType(th.StringType)
+            if (isinstance(sql_type.item_type, INTEGER) or isinstance(sql_type.item_type, INT64)):
+                jsonschema = th.ArrayType(th.NumberType)
+            if (isinstance(sql_type.item_type, NUMERIC) or isinstance(sql_type.item_type, FLOAT) or isinstance(sql_type.item_type, FLOAT64)):
+                jsonschema = th.ArrayType(th.NumberType)
             if (isinstance(sql_type.item_type, NUMERIC)):
                 jsonschema = th.ArrayType(th.NumberType)
             if (isinstance(sql_type.item_type, STRUCT)):
@@ -117,21 +122,6 @@ class BigQueryConnector(SQLConnector):
         ),
     ) -> dict:
         LOGGER.error("%s: Type %s, Array: %s, Tuple: %s", column_name, sql_type, sql_type._is_array, sql_type._is_tuple_type)
-        # if (isinstance(sql_type, ARRAY)):
-        #     LOGGER.debug("%s: Item type: %s", column_name, sql_type.item_type)
-        #     if (isinstance(sql_type.item_type, STRING)):
-        #         jsonschema = th.ArrayType(th.StringType)
-        #     if (isinstance(sql_type.item_type, NUMERIC)):
-        #         jsonschema = th.ArrayType(th.NumberType)
-        #     if (isinstance(sql_type.item_type, STRUCT)):
-        #         properties = self.struct_to_properties(sql_type.item_type)
-        #         jsonschema = th.ArrayType(
-        #             th.ObjectType(
-        #                 *properties,
-        #             )
-        #         )
-        #     return jsonschema.type_dict
-
         if (isinstance(sql_type, ARRAY)):
             jsonschema = self.to_array_type(sql_type)
             return jsonschema.type_dict
