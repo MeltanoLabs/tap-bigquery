@@ -5,17 +5,42 @@ This includes BigQueryStream and BigQueryConnector.
 
 from __future__ import annotations
 
+import math
 from typing import Any, Iterable
 
 from singer_sdk import SQLStream
+from singer_sdk.helpers import types
 
 from tap_bigquery.connector import BigQueryConnector
-
 
 class BigQueryStream(SQLStream):
     """Stream class for BigQuery streams."""
 
     connector_class = BigQueryConnector
+
+    def prepare_serialisation(self, _dict):
+        """
+        Fix 'ValueError: Out of range float values are not JSON compliant'
+        Recursively delete keys with the value ``math.inf`` in a dictionary.
+        NB - This alters the input so the return is just a convenience.
+        """
+        for key, value in list(_dict.items()):
+            if isinstance(value, dict):
+                self.prepare_serialisation(value)
+            elif value is math.inf:
+                _dict[key] = None
+            elif isinstance(value, list):
+                for v_i in value:
+                    if isinstance(v_i, dict):
+                        self.prepare_serialisation(v_i)
+        return _dict
+
+    def post_process(  # noqa: PLR6301
+        self,
+        row: types.Record,
+        context: types.Context | None = None,  # noqa: ARG002
+    ) -> dict | None:
+        return self.prepare_serialisation(row)
 
     def get_records(self, partition: dict | None) -> Iterable[dict[str, Any]]:
         """Return a generator of record-type dictionary objects.

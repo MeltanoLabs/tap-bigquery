@@ -10,7 +10,7 @@ from sqlalchemy.types import String, Float
 
 from singer_sdk._singerlib import Catalog, CatalogEntry
 from tap_bigquery.tap import TapBigQuery
-from tap_bigquery.client import BigQueryConnector
+from tap_bigquery.client import BigQueryConnector, BigQueryStream
 
 from tests.test_core import SAMPLE_CONFIG
 
@@ -58,9 +58,81 @@ class TestClient(unittest.TestCase):
         self.mock_catalog = None
 
     @mock.patch("sqlalchemy.create_engine", return_value=create_mock_engine('bigquery://mockprojectid', dump))
+    @mock.patch("sqlalchemy.inspect", return_value=MockInspector(
+            ['mock-schema'], 
+            ['mock_table'],
+            {
+                'mock-schema.mock_table': [
+                    { 'name': 'float_infinity', 'type': Float },
+                ],
+            },
+        )
+    )
+    def test_record_serialisable_post_processing(self, mock_engine, mock_inspector):
+        # given a mock DB schema
+        # given a mock DB table
+        # given a tap instance with empty catalog
+        tap = TapBigQuery(
+            config=self.mock_config,
+            catalog=self.mock_catalog,
+        )
+        # given an sqlachemy result set contains floats with infinity values
+        self.mock_records.append({
+            "float_infinity": math.inf,
+        })
+        # when post_process
+        self.assertEqual(len(tap.streams), 1)
+
+        # expect the result can be serialised by simplejson
+        record = tap.streams['mock-schema-mock_table'].post_process(self.mock_records[0])
+        json_output = BigQueryConnector().serialize_json(record)
+        self.assertEqual(json_output, '{"float_infinity":null}')
+
+
+    @mock.patch("sqlalchemy.create_engine", return_value=create_mock_engine('bigquery://mockprojectid', dump))
+    @mock.patch("sqlalchemy.inspect", return_value=MockInspector(
+            ['mock-schema'], 
+            ['mock_table'],
+            {
+                'mock-schema.mock_table': [
+                    { 'name': 'string_field', 'type': String(50) },
+                    { 'name': 'float_field', 'type': Float },
+                    { 'name': 'float_none', 'type': Float },
+                    # { 'name': 'float_infinity', 'type': Float },
+                ],
+            },
+        )
+    )
+    @mock.patch("singer_sdk.SQLStream.get_records", return_value=mock_records)
+    def test_record_serialisable(self, mock_engine, mock_inspector, mock_tap_records):
+        # given a mock DB schema
+        # given a mock DB table
+        # given a tap instance with catalog discovered from sqlalchemy
+        tap = TapBigQuery(
+            config=self.mock_config,
+            catalog=self.mock_catalog,
+        )
+        # given an sqlachemy result set contains floats with None values
+        self.mock_records.append({
+            "string_field": "jam",
+            "float_field": 0.0,
+            "float_none": None,
+            # "float_infinity": math.inf,
+        })
+        # when get_records
+        self.assertEqual(len(tap.streams), 1)
+        records = tap.streams['mock-schema-mock_table'].get_records(partition = None)
+
+        # expect the result can be serialised by simplejson
+        for record in records:
+            json_output = BigQueryConnector().serialize_json(record)
+            self.assertEqual(json_output, '{"string_field":"jam","float_field":0.0,"float_none":null}')
+
+
+    @mock.patch("sqlalchemy.create_engine", return_value=create_mock_engine('bigquery://mockprojectid', dump))
     @mock.patch("sqlalchemy.inspect", return_value=MockInspector())
     @mock.patch("singer_sdk.SQLStream.get_records", return_value=mock_records)
-    def test_record_with_none_float_serialisable(self, mock_engine, mock_inspector, mock_sql_tap):
+    def test_catalog_supplied(self, mock_engine, mock_inspector, mock_sql_tap):
         # given a mock DB schema
         # given a mock DB table
         # given a tap instance with catalog defining one dataset
@@ -86,18 +158,6 @@ class TestClient(unittest.TestCase):
                                         "null",
                                     ]
                                 },
-                                # "float_none":{
-                                #     "type":[
-                                #         "float_value",
-                                #         "null",
-                                #     ]
-                                # },
-                                # "float_infinity":{
-                                #     "type":[
-                                #         "float_value",
-                                #         "null",
-                                #     ]
-                                # },
                             },
                         },
                     }
@@ -112,8 +172,6 @@ class TestClient(unittest.TestCase):
         self.mock_records.append({
             "string_field": "jam",
             "float_field": 0.0,
-            # "float_none": None,
-            # "float_infinity": math.inf,
         })
         # when get_records
         self.assertEqual(len(tap.streams), 1)
@@ -157,7 +215,3 @@ class TestClient(unittest.TestCase):
         for record in records:
             json_output = BigQueryConnector().serialize_json(record)
             self.assertEqual(json_output, '{"string_field":"jam"}')
-
-
-
-
