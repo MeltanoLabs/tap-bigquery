@@ -20,7 +20,7 @@ class BigQueryStream(SQLStream):
 
     connector_class = BigQueryConnector
 
-    def prepare_serialisation(self, _dict):
+    def prepare_serialisation(self, _dict, _keychain = []):
         """
         Fix 'ValueError: Out of range float values are not JSON compliant'
         Recursively delete keys with the value ``None`` in a dictionary.
@@ -29,17 +29,20 @@ class BigQueryStream(SQLStream):
         """
         for key, value in list(_dict.items()):
             if isinstance(value, dict):
-                self.prepare_serialisation(value)
-            elif value is None:
-                del _dict[key]
+                self.prepare_serialisation(value, _keychain[:] + [key])
+            # elif value is None:
+            #     del _dict[key]
             elif isinstance(value, float) and math.isinf(value):
-                LOGGER.warning("Dropping unsupported value from '%s'", key)
+                LOGGER.warning("Dropping unsupported value from '%s' -> '%s'", str(_keychain), str(key))
                 del _dict[key]
             elif isinstance(value, list):
-                _dict[key] = [tup for tup in value if not isinstance(tup, float) or not math.isinf(tup)]
+                new_array = [tup for tup in value if not isinstance(tup, float) or not math.isinf(tup)]
+                if len(_dict[key]) != len(new_array):
+                    LOGGER.warning("Dropping %s unsupported values from '%s'", len(_dict[key]) - len(new_array), str(_keychain[:] + [key]))
+                    _dict[key] = new_array
                 for v_i in value:
                     if isinstance(v_i, dict):
-                        self.prepare_serialisation(v_i)
+                        self.prepare_serialisation(v_i, _keychain[:] + [key])
         return _dict
 
     def post_process(  # noqa: PLR6301
