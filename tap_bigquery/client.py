@@ -6,12 +6,14 @@ This includes BigQueryStream and BigQueryConnector.
 from __future__ import annotations
 
 import math
+import logging
 from typing import Any, Iterable
 
 from singer_sdk import SQLStream
 from singer_sdk.helpers import types
 
 from tap_bigquery.connector import BigQueryConnector
+LOGGER = logging.getLogger(__name__)
 
 class BigQueryStream(SQLStream):
     """Stream class for BigQuery streams."""
@@ -21,14 +23,18 @@ class BigQueryStream(SQLStream):
     def prepare_serialisation(self, _dict):
         """
         Fix 'ValueError: Out of range float values are not JSON compliant'
+        Recursively delete keys with the value ``None`` in a dictionary.
         Recursively delete keys with the value ``math.inf`` in a dictionary.
         NB - This alters the input so the return is just a convenience.
         """
         for key, value in list(_dict.items()):
             if isinstance(value, dict):
                 self.prepare_serialisation(value)
+            elif value is None:
+                del _dict[key]
             elif value is math.inf:
-                _dict[key] = None
+                LOGGER.warning("Dropping unsupported value from '%s'", key)
+                del _dict[key]
             elif isinstance(value, list):
                 for v_i in value:
                     if isinstance(v_i, dict):

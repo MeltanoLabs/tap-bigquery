@@ -2,49 +2,20 @@
 
 import unittest
 from unittest import mock
+from tests.utils.mockinspector import MockInspector
 
 import math
-from typing import List
-from sqlalchemy import create_mock_engine, engine, Inspector, Column
+from sqlalchemy import create_mock_engine, engine
 from sqlalchemy.types import String, Float
 
 from singer_sdk._singerlib import Catalog, CatalogEntry
 from tap_bigquery.tap import TapBigQuery
-from tap_bigquery.client import BigQueryConnector, BigQueryStream
+from tap_bigquery.client import BigQueryConnector
 
 from tests.test_core import SAMPLE_CONFIG
 
 def dump(sql, *multiparams, **params):
     print(sql.compile(dialect=engine.dialect))
-
-class MockInspector(Inspector):
-    def __init__(
-        self,
-        schema_names:List[str] = None,
-        table_names:List[str] = None,
-        table_columns = None,
-    ):
-        self.schema_names = schema_names
-        self.table_names = table_names
-        self.table_columns = table_columns
-
-    def get_schema_names(self)-> List[str]:
-        return self.schema_names
-
-    def get_table_names(self, schema:str) -> List[str]:
-        return self.table_names
-
-    def get_view_names(self, schema:str) -> List[str]:
-        raise NotImplementedError
-
-    def get_indexes(self, table_name: str, schema: str) -> List[str]:
-        return []
-
-    def get_columns(self, table_name: str, schema: str) -> dict[str, Column]:
-        return self.table_columns[schema + '.' + table_name]
-
-    def get_pk_constraint(self, table_name: str, schema: str) -> dict:
-        return {}
 
 
 class TestClient(unittest.TestCase):
@@ -56,6 +27,7 @@ class TestClient(unittest.TestCase):
         self.mock_config = SAMPLE_CONFIG
         # default catalog setup discovers streams
         self.mock_catalog = None
+        TestClient.mock_records = []
 
     @mock.patch("sqlalchemy.create_engine", return_value=create_mock_engine('bigquery://mockprojectid', dump))
     @mock.patch("sqlalchemy.inspect", return_value=MockInspector(
@@ -83,10 +55,11 @@ class TestClient(unittest.TestCase):
         # when post_process
         self.assertEqual(len(tap.streams), 1)
 
-        # expect the result can be serialised by simplejson
+        # expect invalid fields removed, so the result can be serialised by simplejson
         record = tap.streams['mock-schema-mock_table'].post_process(self.mock_records[0])
         json_output = BigQueryConnector().serialize_json(record)
-        self.assertEqual(json_output, '{"float_infinity":null}')
+        # self.assertEqual(json_output, '{"float_infinity":null}')
+        self.assertEqual(json_output, '{}')
 
 
     @mock.patch("sqlalchemy.create_engine", return_value=create_mock_engine('bigquery://mockprojectid', dump))
