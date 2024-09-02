@@ -4,9 +4,9 @@ import unittest
 from unittest import mock
 from tests.utils.mockinspector import MockInspector
 
-import math
 from sqlalchemy import create_mock_engine, engine
-from sqlalchemy.types import String, Float
+from sqlalchemy.types import String, Double, Float
+from sqlalchemy_bigquery import ARRAY
 
 from singer_sdk._singerlib import Catalog, CatalogEntry
 from tap_bigquery.tap import TapBigQuery
@@ -35,7 +35,11 @@ class TestClient(unittest.TestCase):
             ['mock_table'],
             {
                 'mock-schema.mock_table': [
+                    { 'name': 'double_field', 'type': Double },
+                    { 'name': 'double_infinity', 'type': Double },
+                    { 'name': 'float_field', 'type': Float },
                     { 'name': 'float_infinity', 'type': Float },
+                    { 'name': 'array_field', 'type': ARRAY },
                 ],
             },
         )
@@ -50,7 +54,13 @@ class TestClient(unittest.TestCase):
         )
         # given an sqlachemy result set contains floats with infinity values
         self.mock_records.append({
-            "float_infinity": math.inf,
+            "double_field": 1.0,
+            "double_infinity": float('inf'),
+            "float_field": 1.0,
+            "float_infinity": float('inf'),
+            "array_field": [1.0, float('inf')],
+            "array_struct_field": [{"value": 1.0}, {"value": float('inf')}],
+            "array_struct_struct_field": [{"value": {"value": 1.0}}],
         })
         # when post_process
         self.assertEqual(len(tap.streams), 1)
@@ -58,8 +68,10 @@ class TestClient(unittest.TestCase):
         # expect invalid fields removed, so the result can be serialised by simplejson
         record = tap.streams['mock-schema-mock_table'].post_process(self.mock_records[0])
         json_output = BigQueryConnector().serialize_json(record)
-        # self.assertEqual(json_output, '{"float_infinity":null}')
-        self.assertEqual(json_output, '{}')
+        self.assertEqual(json_output, '{"double_field":1.0,"float_field":1.0,"array_field":[1.0]'
+                         + ',"array_struct_field":[{"value":1.0},{}]'
+                         + ',"array_struct_struct_field":[{"value":{"value":1.0}}]'
+                         + '}')
 
 
     @mock.patch("sqlalchemy.create_engine", return_value=create_mock_engine('bigquery://mockprojectid', dump))
@@ -71,7 +83,6 @@ class TestClient(unittest.TestCase):
                     { 'name': 'string_field', 'type': String(50) },
                     { 'name': 'float_field', 'type': Float },
                     { 'name': 'float_none', 'type': Float },
-                    # { 'name': 'float_infinity', 'type': Float },
                 ],
             },
         )
@@ -90,7 +101,6 @@ class TestClient(unittest.TestCase):
             "string_field": "jam",
             "float_field": 0.0,
             "float_none": None,
-            # "float_infinity": math.inf,
         })
         # when get_records
         self.assertEqual(len(tap.streams), 1)

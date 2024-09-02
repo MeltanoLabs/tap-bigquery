@@ -32,10 +32,11 @@ class BigQueryStream(SQLStream):
                 self.prepare_serialisation(value)
             elif value is None:
                 del _dict[key]
-            elif value is math.inf:
+            elif isinstance(value, float) and math.isinf(value):
                 LOGGER.warning("Dropping unsupported value from '%s'", key)
                 del _dict[key]
             elif isinstance(value, list):
+                _dict[key] = [tup for tup in value if not isinstance(tup, float) or not math.isinf(tup)]
                 for v_i in value:
                     if isinstance(v_i, dict):
                         self.prepare_serialisation(v_i)
