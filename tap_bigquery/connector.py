@@ -43,7 +43,7 @@ class BigQueryConnector(SQLConnector):
                     # json_deserializer=self.deserialize_json,
                 )
             except (TypeError, json.decoder.JSONDecodeError):
-                LOGGER.warning("'google_application_credentials' not valid json")
+                LOGGER.warning("'google_application_credentials' not valid json trying path")
                 return sqlalchemy.create_engine(
                     self.sqlalchemy_url,
                     echo=False,
@@ -121,7 +121,7 @@ class BigQueryConnector(SQLConnector):
             | t.Any
         ),
     ) -> dict:
-        LOGGER.error("%s: Type %s, Array: %s, Tuple: %s", column_name, sql_type, sql_type._is_array, sql_type._is_tuple_type)
+        LOGGER.debug("%s: Type %s, Array: %s, Tuple: %s", column_name, sql_type, sql_type._is_array, sql_type._is_tuple_type)
         if (isinstance(sql_type, ARRAY)):
             jsonschema = self.to_array_type(sql_type)
             return jsonschema.type_dict

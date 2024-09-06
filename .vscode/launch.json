@@ -11,6 +11,8 @@
             "args": [
                 "--config",
                 "ENV",
+                "--catalog",
+                "./catalog.json",
             ],
         },
     ]

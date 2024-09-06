@@ -29,6 +29,13 @@ class TapBigQuery(SQLTap):
             description="JSON content or path to service account credentials.",
         ),
         th.Property(
+            "google_storage_bucket",
+            th.StringType,
+            required=False,
+            secret=False,
+            description="An optional Google Storage Bucket, when supplied a file based extract will be used.",
+        ),
+        th.Property(
             "filter_schemas",
             th.ArrayType(th.StringType),
             required=False,
