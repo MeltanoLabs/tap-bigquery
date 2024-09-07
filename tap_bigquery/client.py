@@ -5,16 +5,17 @@ This includes BigQueryStream and BigQueryConnector.
 
 from __future__ import annotations
 
-import math
 import json
 import logging
+import math
 from typing import Any, Iterable
 
+from google.cloud import bigquery
 from singer_sdk import SQLStream
 from singer_sdk.helpers import types
-from google.cloud import bigquery
 
 from tap_bigquery.connector import BigQueryConnector
+
 LOGGER = logging.getLogger(__name__)
 
 class BigQueryStream(SQLStream):
@@ -83,21 +84,33 @@ class BigQueryStream(SQLStream):
         # This is helpful if the source database provides batch-optimized record
         # retrieval.
         # If no overrides or optimizations are needed, you may delete this method.
-        if self.config.get("google_storage_bucket"):
-            selected_column_names = list(self.get_selected_schema()["properties"])
-            keys = {
-                "bucket": self.config.get("google_storage_bucket"),
-                "table": self.fully_qualified_name,
-                "columns": selected_column_names,
-            }
-            limit = self.config.get("limit", 100)
-            query = self._build_query(keys, limit=limit)
-
-            LOGGER.info("Running query:\n    " + query)
-
+        if bucket := self.config.get("google_storage_bucket"):
             client = self.get_bigquery_client()
-            query_job = client.query(query)
-            results = query_job.result()  # Waits for job to complete.
+            destination_uri = f"gs://{bucket}/{self.fully_qualified_name}-*.json.gz"
+
+            job_config = bigquery.ExtractJobConfig()
+            job_config.destination_format = (
+                bigquery.DestinationFormat.NEWLINE_DELIMITED_JSON
+            )
+            job_config.compression = bigquery.Compression.GZIP
+
+            LOGGER.info(
+                "Running extract job from table '%s' to bucket '%s'",
+                self.fully_qualified_name,
+                bucket,
+            )
+
+            extract_job = client.extract_table(
+                self.fully_qualified_name,
+                destination_uri,
+                job_config=job_config,
+            )
+            results = extract_job.result()  # Waits for job to complete.
+
+            LOGGER.info(
+                "Extract job completed in %ss",
+                (extract_job.ended - extract_job.started).total_seconds(),
+            )
 
             # emit batch or separate records (needs config for batch e.g. 'target_supports_batch_messages')
             for row in results:
@@ -106,22 +119,3 @@ class BigQueryStream(SQLStream):
             return None
 
         yield from super().get_records(partition)
-
-    def _build_query(self, keys, filters=[], inclusive_start=True, limit=None):
-        keys["columns"] = ','.join(map(str, keys["columns"])) 
-
-        query = "EXPORT DATA OPTIONS(" \
-                "  uri='gs://{bucket}/{table}-*.gz'," \
-                "  format='JSON'," \
-                "  compression='GZIP'," \
-                "  overwrite=true) AS" \
-                " SELECT {columns} FROM {table} WHERE 1=1".format(**keys)
-
-        if filters:
-            for f in filters:
-                query = query + " AND " + f
-
-        if limit is not None:
-            query = query + " LIMIT %d" % limit
-
-        return query
