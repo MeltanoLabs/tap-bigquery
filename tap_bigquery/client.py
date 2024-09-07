@@ -10,6 +10,7 @@ import logging
 import math
 from typing import Any, Iterable
 
+import fsspec
 from google.cloud import bigquery
 from singer_sdk import SQLStream
 from singer_sdk.helpers import types
@@ -105,7 +106,7 @@ class BigQueryStream(SQLStream):
                 destination_uri,
                 job_config=job_config,
             )
-            results = extract_job.result()  # Waits for job to complete.
+            extract_job.result()  # Waits for job to complete.
 
             LOGGER.info(
                 "Extract job completed in %ss",
@@ -113,8 +114,17 @@ class BigQueryStream(SQLStream):
             )
 
             # emit batch or separate records (needs config for batch e.g. 'target_supports_batch_messages')
-            for row in results:
-                print(row)
+            open_files = fsspec.open_files(
+                destination_uri,
+                compression="gzip",
+                token=client._credentials,  # noqa: SLF001
+            )
+
+            for of in open_files:
+                LOGGER.info("Processing %s", of.path)
+
+                with of.open() as f:
+                    yield from map(self.connector.deserialize_json, f.readlines())
 
             return None
 
