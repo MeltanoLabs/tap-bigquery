@@ -8,12 +8,15 @@ from __future__ import annotations
 import json
 import logging
 import math
+import tempfile
+from pathlib import Path
 from typing import Any, Iterable
 
 import fsspec
 from google.cloud import bigquery
 from singer_sdk import SQLStream
 from singer_sdk.helpers import types
+from singer_sdk.helpers._batch import JSONLinesEncoding
 
 from tap_bigquery.connector import BigQueryConnector
 
@@ -114,17 +117,21 @@ class BigQueryStream(SQLStream):
             )
 
             # emit batch or separate records (needs config for batch e.g. 'target_supports_batch_messages')
-            open_files = fsspec.open_files(
-                destination_uri,
-                compression="gzip",
-                token=client._credentials,  # noqa: SLF001
+            fs = fsspec.filesystem("gs", token=client._credentials)  # noqa: SLF001
+
+            tempdir = Path(tempfile.mkdtemp(prefix="tap-bigquery-"))
+            fs.get(destination_uri, tempdir)
+
+            LOGGER.info("Downloaded extract job files to '%s'", tempdir)
+
+            files = list(tempdir.glob("*.json.gz"))
+
+            LOGGER.info("Batching %d file(s): %s", len(files), [str(f) for f in files])
+
+            self._write_batch_message(
+                JSONLinesEncoding("gzip"),
+                [f.as_uri() for f in files],
             )
-
-            for of in open_files:
-                LOGGER.info("Processing %s", of.path)
-
-                with of.open() as f:
-                    yield from map(self.connector.deserialize_json, f.readlines())
 
             return None
 
