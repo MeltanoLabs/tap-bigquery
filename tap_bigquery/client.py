@@ -10,15 +10,18 @@ import logging
 import math
 import tempfile
 from pathlib import Path
-from typing import Any, Iterable
+from typing import TYPE_CHECKING, Any, Iterable
 
 import fsspec
 from google.cloud import bigquery
 from singer_sdk import SQLStream
-from singer_sdk.helpers import types
 from singer_sdk.helpers._batch import JSONLinesEncoding, SDKBatchMessage
 
 from tap_bigquery.connector import BigQueryConnector
+
+if TYPE_CHECKING:
+    from gcsfs import GCSFileSystem
+    from singer_sdk.helpers import types
 
 LOGGER = logging.getLogger(__name__)
 
@@ -117,10 +120,11 @@ class BigQueryStream(SQLStream):
             )
 
             # emit batch or separate records (needs config for batch e.g. 'target_supports_batch_messages')
-            fs = fsspec.filesystem("gs", token=client._credentials)  # noqa: SLF001
+            fs: GCSFileSystem = fsspec.filesystem("gs", token=client._credentials)  # noqa: SLF001
 
             tempdir = Path(tempfile.mkdtemp(prefix="tap-bigquery-"))
             fs.get(destination_uri, tempdir)
+            fs.rm(destination_uri)
 
             LOGGER.info("Downloaded extract job files to '%s'", tempdir)
 
