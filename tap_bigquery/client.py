@@ -123,8 +123,11 @@ class BigQueryStream(SQLStream):
             fs: GCSFileSystem = fsspec.filesystem("gs", token=client._credentials)  # noqa: SLF001
 
             tempdir = Path(tempfile.mkdtemp(prefix="tap-bigquery-"))
-            fs.get(destination_uri, tempdir)
-            fs.rm(destination_uri)
+
+            try:
+                fs.get(destination_uri, tempdir)
+            finally:
+                fs.rm(destination_uri)
 
             LOGGER.info("Downloaded extract job files to '%s'", tempdir)
 
