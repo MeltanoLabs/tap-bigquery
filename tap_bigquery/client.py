@@ -124,16 +124,21 @@ class BigQueryStream(SQLStream):
 
             tempdir = Path(tempfile.mkdtemp(prefix="tap-bigquery-"))
 
+            LOGGER.info("Downloading extract job files to '%s'", tempdir)
+
             try:
                 fs.get(destination_uri, tempdir)
             finally:
+                LOGGER.info("Cleaning up files in bucket")
                 fs.rm(destination_uri)
-
-            LOGGER.info("Downloaded extract job files to '%s'", tempdir)
 
             files = list(tempdir.glob("*.json.gz"))
 
-            LOGGER.info("Batching %d file(s): %s", len(files), [str(f) for f in files])
+            LOGGER.info(
+                "Downloaded %d file(s): %s",
+                len(files),
+                [str(f) for f in files],
+            )
 
             self._write_batch_message(
                 JSONLinesEncoding("gzip"),
