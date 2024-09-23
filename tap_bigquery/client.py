@@ -112,7 +112,14 @@ class BigQueryStream(SQLStream):
                 destination_uri,
                 job_config=job_config,
             )
-            extract_job.result()  # Waits for job to complete.
+
+            try:
+                extract_job.result()  # Waits for job to complete.
+            except:
+                if extract_job.running():
+                    LOGGER.info("Cancelling extract job")
+                    extract_job.cancel()
+                raise
 
             LOGGER.info(
                 "Extract job completed in %ss",
