@@ -107,11 +107,10 @@ class BigQueryStream(SQLStream):
                 bucket,
             )
 
-            extract_job = client.extract_table(
-                self.fully_qualified_name,
-                destination_uri,
-                job_config=job_config,
-            )
+            query = self._build_extract_query()
+            LOGGER.debug(query)
+
+            extract_job = client.query(query)
 
             try:
                 extract_job.result()  # Waits for job to complete.
@@ -166,3 +165,45 @@ class BigQueryStream(SQLStream):
                 ),
             )
         self._is_state_flushed = False
+
+    def _build_extract_query(self):
+        query = """
+        EXPORT DATA
+            OPTIONS (
+                uri = 'gs://{bucket}/{table}-*.json.gz',
+                format = 'JSON',
+                compression='GZIP',
+                overwrite = true
+            )
+        AS (
+            SELECT {expressions}
+            FROM {table}
+        )
+        """
+
+        expressions = _generate_property_expressions(
+            self.get_selected_schema()["properties"],
+        )
+
+        return query.format(
+            bucket=self.config["google_storage_bucket"],
+            table=self.fully_qualified_name,
+            expressions=", ".join(expressions),
+        )
+
+
+def _generate_property_expressions(properties: dict, qualifier: str | None = None):
+    for name, schema in properties.items():
+        qualified_name = f"{qualifier}.{name}" if qualifier else name
+
+        if "properties" in schema:
+            struct = "STRUCT({expressions}) AS {name}"  # https://cloud.google.com/bigquery/docs/reference/standard-sql/data-types#struct_type
+            expressions = _generate_property_expressions(
+                schema["properties"],
+                qualifier=qualified_name,
+            )
+
+            yield struct.format(expressions=", ".join(expressions), name=name)
+
+        else:
+            yield qualified_name
