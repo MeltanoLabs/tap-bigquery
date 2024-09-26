@@ -10,7 +10,7 @@ import logging
 import math
 import tempfile
 from pathlib import Path
-from typing import TYPE_CHECKING, Any, Iterable
+from typing import TYPE_CHECKING
 
 import fsspec
 from google.cloud import bigquery
@@ -75,85 +75,64 @@ class BigQueryStream(SQLStream):
     ) -> dict | None:
         return self.prepare_serialisation(row)
 
-    def get_records(self, partition: dict | None) -> Iterable[dict[str, Any]]:
-        """Return a generator of record-type dictionary objects.
+    def get_batch_config(self, config):
+        return config.get("google_storage_bucket")
 
-        Developers may optionally add custom logic before calling the default
-        implementation inherited from the base class.
+    def get_batches(self, bucket: str, context):
+        client = self.get_bigquery_client()
+        destination_uri = f"gs://{bucket}/{self.fully_qualified_name}-*.json.gz"
 
-        Args:
-            partition: If provided, will read specifically from this data slice.
+        job_config = bigquery.ExtractJobConfig()
+        job_config.destination_format = (
+            bigquery.DestinationFormat.NEWLINE_DELIMITED_JSON
+        )
+        job_config.compression = bigquery.Compression.GZIP
 
-        Yields:
-            One dict per record.
-        """
-        # Optionally, add custom logic instead of calling the super().
-        # This is helpful if the source database provides batch-optimized record
-        # retrieval.
-        # If no overrides or optimizations are needed, you may delete this method.
-        if bucket := self.config.get("google_storage_bucket"):
-            client = self.get_bigquery_client()
-            destination_uri = f"gs://{bucket}/{self.fully_qualified_name}-*.json.gz"
+        LOGGER.info(
+            "Running extract job from table '%s' to bucket '%s'",
+            self.fully_qualified_name,
+            bucket,
+        )
 
-            job_config = bigquery.ExtractJobConfig()
-            job_config.destination_format = (
-                bigquery.DestinationFormat.NEWLINE_DELIMITED_JSON
-            )
-            job_config.compression = bigquery.Compression.GZIP
+        query = self._build_extract_query()
+        LOGGER.debug(query)
 
-            LOGGER.info(
-                "Running extract job from table '%s' to bucket '%s'",
-                self.fully_qualified_name,
-                bucket,
-            )
+        extract_job = client.query(query)
 
-            query = self._build_extract_query()
-            LOGGER.debug(query)
+        try:
+            extract_job.result()  # Waits for job to complete.
+        except:
+            if extract_job.running():
+                LOGGER.info("Cancelling extract job")
+                extract_job.cancel()
+            raise
 
-            extract_job = client.query(query)
+        LOGGER.info(
+            "Extract job completed in %ss",
+            (extract_job.ended - extract_job.started).total_seconds(),
+        )
 
-            try:
-                extract_job.result()  # Waits for job to complete.
-            except:
-                if extract_job.running():
-                    LOGGER.info("Cancelling extract job")
-                    extract_job.cancel()
-                raise
+        fs: GCSFileSystem = fsspec.filesystem("gs", token=client._credentials)  # noqa: SLF001
 
-            LOGGER.info(
-                "Extract job completed in %ss",
-                (extract_job.ended - extract_job.started).total_seconds(),
-            )
+        tempdir = Path(tempfile.mkdtemp(prefix="tap-bigquery-"))
 
-            # emit batch or separate records (needs config for batch e.g. 'target_supports_batch_messages')
-            fs: GCSFileSystem = fsspec.filesystem("gs", token=client._credentials)  # noqa: SLF001
+        LOGGER.info("Downloading extract job files to '%s'", tempdir)
 
-            tempdir = Path(tempfile.mkdtemp(prefix="tap-bigquery-"))
+        try:
+            fs.get(destination_uri, tempdir)
+        finally:
+            LOGGER.info("Cleaning up files in bucket")
+            fs.rm(destination_uri)
 
-            LOGGER.info("Downloading extract job files to '%s'", tempdir)
+        files = list(tempdir.glob("*.json.gz"))
 
-            try:
-                fs.get(destination_uri, tempdir)
-            finally:
-                LOGGER.info("Cleaning up files in bucket")
-                fs.rm(destination_uri)
+        LOGGER.info(
+            "Downloaded %d file(s): %s",
+            len(files),
+            [str(f) for f in files],
+        )
 
-            files = list(tempdir.glob("*.json.gz"))
-
-            LOGGER.info(
-                "Downloaded %d file(s): %s",
-                len(files),
-                [str(f) for f in files],
-            )
-
-            self._write_batch_message(
-                JSONLinesEncoding("gzip"),
-                [f.as_uri() for f in files],
-            )
-
-            return None
-
-        yield from super().get_records(partition)
+        yield JSONLinesEncoding("gzip"), [f.as_uri() for f in files]
 
     def _write_batch_message(self, encoding, manifest):
         for stream_map in self.stream_maps:
