@@ -9,6 +9,7 @@ import json
 import logging
 import math
 import tempfile
+from functools import cached_property
 from pathlib import Path
 from typing import TYPE_CHECKING
 
@@ -30,18 +31,20 @@ class BigQueryStream(SQLStream):
 
     connector_class = BigQueryConnector
 
-    def get_bigquery_client(self):
-        """Initialize a bigquery client from credentials json or path.
+    @cached_property
+    def client(self):
+        credentials: str = self.config["google_application_credentials"]
 
-        Returns:
-            Initialized BigQuery client.
-        """
-        if self.config.get("google_application_credentials"):
-            try:
-                return bigquery.Client.from_service_account_info(json.loads(self.config.get("google_application_credentials")))
-            except (TypeError, json.decoder.JSONDecodeError):
-                LOGGER.warning("'google_application_credentials' not valid json trying path")
-                return bigquery.Client.from_service_account_json(self.config.get("google_application_credentials"))
+        try:
+            return bigquery.Client.from_service_account_info(
+                json.loads(credentials),
+            )
+        except (TypeError, json.decoder.JSONDecodeError):
+            LOGGER.debug(
+                "`google_application_credentials` is not valid JSON, trying as path",
+            )
+
+        return bigquery.Client.from_service_account_json(credentials)
 
     def prepare_serialisation(self, _dict, _keychain = []):
         """
@@ -79,7 +82,6 @@ class BigQueryStream(SQLStream):
         return config.get("google_storage_bucket")
 
     def get_batches(self, bucket: str, context):
-        client = self.get_bigquery_client()
         destination_uri = f"gs://{bucket}/{self.fully_qualified_name}-*.json.gz"
 
         job_config = bigquery.ExtractJobConfig()
@@ -97,7 +99,7 @@ class BigQueryStream(SQLStream):
         query = self._build_extract_query()
         LOGGER.debug(query)
 
-        extract_job = client.query(query)
+        extract_job = self.client.query(query)
 
         try:
             extract_job.result()  # Waits for job to complete.
@@ -112,7 +114,7 @@ class BigQueryStream(SQLStream):
             (extract_job.ended - extract_job.started).total_seconds(),
         )
 
-        fs: GCSFileSystem = fsspec.filesystem("gs", token=client._credentials)  # noqa: SLF001
+        fs: GCSFileSystem = fsspec.filesystem("gs", token=self.client._credentials)  # noqa: SLF001
 
         tempdir = Path(tempfile.mkdtemp(prefix="tap-bigquery-"))
 
