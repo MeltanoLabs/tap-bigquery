@@ -23,7 +23,10 @@ class TapBigQuery(SQLTap):
         ),
         th.Property(
             "google_application_credentials",
-            th.StringType,
+            th.OneOf(
+                th.StringType,
+                th.ObjectType(),
+            ),
             required=True,
             secret=True,
             description="JSON content or path to service account credentials.",

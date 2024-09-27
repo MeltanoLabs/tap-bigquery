@@ -33,11 +33,13 @@ class BigQueryStream(SQLStream):
 
     @cached_property
     def client(self):
-        credentials: str = self.config["google_application_credentials"]
+        credentials: str | dict = self.config["google_application_credentials"]
 
         try:
             return bigquery.Client.from_service_account_info(
-                json.loads(credentials),
+                json.loads(credentials)
+                if isinstance(credentials, str)
+                else credentials,
             )
         except (TypeError, json.decoder.JSONDecodeError):
             LOGGER.debug(

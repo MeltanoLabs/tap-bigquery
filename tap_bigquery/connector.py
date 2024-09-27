@@ -2,16 +2,26 @@
 
 from __future__ import annotations
 
-import typing as t
-import sqlalchemy
 import json
 import logging
+import typing as t
+
+import sqlalchemy
 from singer_sdk import SQLConnector
-from singer_sdk._singerlib import CatalogEntry, MetadataMapping, Schema
 from singer_sdk import typing as th  # JSON schema typing helpers
+from singer_sdk._singerlib import CatalogEntry, MetadataMapping, Schema
 from sqlalchemy.engine import Engine
 from sqlalchemy.engine.reflection import Inspector
-from sqlalchemy_bigquery import STRUCT, ARRAY, NUMERIC, STRING, INTEGER, INT64, FLOAT, FLOAT64
+from sqlalchemy_bigquery import (
+    ARRAY,
+    FLOAT,
+    FLOAT64,
+    INT64,
+    INTEGER,
+    NUMERIC,
+    STRING,
+    STRUCT,
+)
 
 LOGGER = logging.getLogger(__name__)
 
@@ -32,13 +42,18 @@ class BigQueryConnector(SQLConnector):
         Returns:
             A new SQLAlchemy Engine.
         """
-        if self.config.get("google_application_credentials"):
+        credentials : str | dict = self.config.get("google_application_credentials")
+
+        if credentials:
             try:
-                credentials_info=json.loads(self.config.get("google_application_credentials"))
                 return sqlalchemy.create_engine(
                     self.sqlalchemy_url,
                     echo=False,
-                    credentials_info=credentials_info,
+                    credentials_info=(
+                        json.loads(credentials)
+                        if isinstance(credentials, str)
+                        else credentials
+                    ),
                     # json_serializer=self.serialize_json,
                     # json_deserializer=self.deserialize_json,
                 )
@@ -47,7 +62,7 @@ class BigQueryConnector(SQLConnector):
                 return sqlalchemy.create_engine(
                     self.sqlalchemy_url,
                     echo=False,
-                    credentials_path=self.config.get("google_application_credentials"),
+                    credentials_path=credentials,
                     # json_serializer=self.serialize_json,
                     # json_deserializer=self.deserialize_json,
                 )
@@ -71,9 +86,9 @@ class BigQueryConnector(SQLConnector):
         if (isinstance(sql_type, ARRAY)):
             if (isinstance(sql_type.item_type, STRING)):
                 jsonschema = th.ArrayType(th.StringType)
-            if (isinstance(sql_type.item_type, INTEGER) or isinstance(sql_type.item_type, INT64)):
+            if (isinstance(sql_type.item_type, (INT64, INTEGER))):
                 jsonschema = th.ArrayType(th.NumberType)
-            if (isinstance(sql_type.item_type, NUMERIC) or isinstance(sql_type.item_type, FLOAT) or isinstance(sql_type.item_type, FLOAT64)):
+            if (isinstance(sql_type.item_type, (FLOAT, FLOAT64, NUMERIC))):
                 jsonschema = th.ArrayType(th.NumberType)
             if (isinstance(sql_type.item_type, NUMERIC)):
                 jsonschema = th.ArrayType(th.NumberType)
@@ -82,7 +97,7 @@ class BigQueryConnector(SQLConnector):
                 jsonschema = th.ArrayType(
                     th.ObjectType(
                         *properties,
-                    )
+                    ),
                 )
             return jsonschema
 
@@ -101,9 +116,9 @@ class BigQueryConnector(SQLConnector):
                 LOGGER.debug("%s: property type: %s", name, type_)
                 if (isinstance(type_, STRING)):
                     properties.append(th.Property(name, th.StringType))
-                if (isinstance(type_, INTEGER) or isinstance(type_, INT64)):
+                if (isinstance(type_, (INT64, INTEGER))):
                     properties.append(th.Property(name, th.IntegerType))
-                if (isinstance(type_, NUMERIC) or isinstance(type_, FLOAT) or isinstance(type_, FLOAT64)):
+                if (isinstance(type_, (FLOAT, FLOAT64, NUMERIC))):
                     properties.append(th.Property(name, th.NumberType))
                 if (isinstance(type_, STRUCT)):
                     properties.append(th.Property(name, th.ObjectType(*self.struct_to_properties(type_))))
