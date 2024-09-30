@@ -3,15 +3,12 @@
 from __future__ import annotations
 
 import json
-import logging
 import typing as t
 
 import sqlalchemy
 from singer_sdk import SQLConnector
 from singer_sdk import typing as th  # JSON schema typing helpers
 from singer_sdk._singerlib import CatalogEntry, MetadataMapping, Schema
-from sqlalchemy.engine import Engine
-from sqlalchemy.engine.reflection import Inspector
 from sqlalchemy_bigquery import (
     ARRAY,
     FLOAT,
@@ -23,7 +20,10 @@ from sqlalchemy_bigquery import (
     STRUCT,
 )
 
-LOGGER = logging.getLogger(__name__)
+if t.TYPE_CHECKING:
+    from sqlalchemy.engine import Engine
+    from sqlalchemy.engine.reflection import Inspector
+
 
 class BigQueryConnector(SQLConnector):
     """Connects to the BigQuery SQL source."""
@@ -58,7 +58,9 @@ class BigQueryConnector(SQLConnector):
                     # json_deserializer=self.deserialize_json,
                 )
             except (TypeError, json.decoder.JSONDecodeError):
-                LOGGER.warning("'google_application_credentials' not valid json trying path")
+                self.logger.warning(
+                    "'google_application_credentials' not valid json trying path",
+                )
                 return sqlalchemy.create_engine(
                     self.sqlalchemy_url,
                     echo=False,
@@ -113,7 +115,7 @@ class BigQueryConnector(SQLConnector):
         properties = []
         if (isinstance(sql_type, STRUCT)):
             for name, type_ in sql_type._STRUCT_fields:
-                LOGGER.debug("%s: property type: %s", name, type_)
+                self.logger.debug("%s: property type: %s", name, type_)
                 if (isinstance(type_, STRING)):
                     properties.append(th.Property(name, th.StringType))
                 if (isinstance(type_, (INT64, INTEGER))):
@@ -136,7 +138,13 @@ class BigQueryConnector(SQLConnector):
             | t.Any
         ),
     ) -> dict:
-        LOGGER.debug("%s: Type %s, Array: %s, Tuple: %s", column_name, sql_type, sql_type._is_array, sql_type._is_tuple_type)
+        self.logger.debug(
+            "%s: Type %s, Array: %s, Tuple: %s",
+            column_name,
+            sql_type,
+            sql_type._is_array,
+            sql_type._is_tuple_type,
+        )
         if (isinstance(sql_type, ARRAY)):
             jsonschema = self.to_array_type(sql_type)
             return jsonschema.type_dict
