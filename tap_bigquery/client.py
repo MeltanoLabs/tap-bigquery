@@ -6,7 +6,6 @@ This includes BigQueryStream and BigQueryConnector.
 from __future__ import annotations
 
 import json
-import logging
 import math
 import tempfile
 from functools import cached_property
@@ -24,7 +23,6 @@ if TYPE_CHECKING:
     from gcsfs import GCSFileSystem
     from singer_sdk.helpers import types
 
-LOGGER = logging.getLogger(__name__)
 
 class BigQueryStream(SQLStream):
     """Stream class for BigQuery streams."""
@@ -42,7 +40,7 @@ class BigQueryStream(SQLStream):
                 else credentials,
             )
         except (TypeError, json.decoder.JSONDecodeError):
-            LOGGER.debug(
+            self.logger.debug(
                 "`google_application_credentials` is not valid JSON, trying as path",
             )
 
@@ -61,12 +59,20 @@ class BigQueryStream(SQLStream):
             # elif value is None:
             #     del _dict[key]
             elif isinstance(value, float) and math.isinf(value):
-                LOGGER.warning("Dropping unsupported value from '%s' -> '%s'", str(_keychain), str(key))
+                self.logger.warning(
+                    "Dropping unsupported value from '%s' -> '%s'",
+                    str(_keychain),
+                    str(key),
+                )
                 del _dict[key]
             elif isinstance(value, list):
                 new_array = [tup for tup in value if not isinstance(tup, float) or not math.isinf(tup)]
                 if len(_dict[key]) != len(new_array):
-                    LOGGER.warning("Dropping %s unsupported values from '%s'", len(_dict[key]) - len(new_array), str(_keychain[:] + [key]))
+                    self.logger.warning(
+                        "Dropping %s unsupported values from '%s'",
+                        len(_dict[key]) - len(new_array),
+                        str(_keychain[:] + [key]),
+                    )
                     _dict[key] = new_array
                 for v_i in value:
                     if isinstance(v_i, dict):
@@ -92,14 +98,14 @@ class BigQueryStream(SQLStream):
         )
         job_config.compression = bigquery.Compression.GZIP
 
-        LOGGER.info(
+        self.logger.info(
             "Running extract job from table '%s' to bucket '%s'",
             self.fully_qualified_name,
             bucket,
         )
 
         query = self._build_extract_query()
-        LOGGER.debug(query)
+        self.logger.debug(query)
 
         extract_job = self.client.query(query)
 
@@ -107,11 +113,11 @@ class BigQueryStream(SQLStream):
             extract_job.result()  # Waits for job to complete.
         except:
             if extract_job.running():
-                LOGGER.info("Cancelling extract job")
+                self.logger.info("Cancelling extract job")
                 extract_job.cancel()
             raise
 
-        LOGGER.info(
+        self.logger.info(
             "Extract job completed in %ss",
             (extract_job.ended - extract_job.started).total_seconds(),
         )
@@ -120,17 +126,17 @@ class BigQueryStream(SQLStream):
 
         tempdir = Path(tempfile.mkdtemp(prefix="tap-bigquery-"))
 
-        LOGGER.info("Downloading extract job files to '%s'", tempdir)
+        self.logger.info("Downloading extract job files to '%s'", tempdir)
 
         try:
             fs.get(destination_uri, tempdir)
         finally:
-            LOGGER.info("Cleaning up files in bucket")
+            self.logger.info("Cleaning up files in bucket")
             fs.rm(destination_uri)
 
         files = list(tempdir.glob("*.json.gz"))
 
-        LOGGER.info(
+        self.logger.info(
             "Downloaded %d file(s): %s",
             len(files),
             [str(f) for f in files],
