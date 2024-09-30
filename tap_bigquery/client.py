@@ -15,7 +15,7 @@ from typing import TYPE_CHECKING
 from gcsfs import GCSFileSystem
 from google.cloud import bigquery
 from singer_sdk import SQLStream
-from singer_sdk.helpers._batch import JSONLinesEncoding, SDKBatchMessage
+from singer_sdk.helpers._batch import JSONLinesEncoding
 
 from tap_bigquery.connector import BigQueryConnector
 
@@ -142,17 +142,6 @@ class BigQueryStream(SQLStream):
         )
 
         yield JSONLinesEncoding("gzip"), [f.as_uri() for f in files]
-
-    def _write_batch_message(self, encoding, manifest):
-        for stream_map in self.stream_maps:
-            self._tap.write_message(
-                SDKBatchMessage(
-                    stream=stream_map.stream_alias,
-                    encoding=encoding,
-                    manifest=manifest,
-                ),
-            )
-        self._is_state_flushed = False
 
     def _build_extract_query(self):
         query = """

@@ -180,12 +180,7 @@ class BigQueryConnector(SQLConnector):
             `CatalogEntry` object for the given table or a view
         """
         # Initialize unique stream name
-        unique_stream_id = self.get_fully_qualified_name(
-            db_name=None,
-            schema_name=schema_name,
-            table_name=table_name,
-            delimiter="-",
-        )
+        unique_stream_id = f"{schema_name}-{table_name}"
 
         # Detect key properties
         possible_primary_keys: list[list[str]] = []
