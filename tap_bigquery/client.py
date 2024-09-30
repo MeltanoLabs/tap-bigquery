@@ -12,7 +12,7 @@ from functools import cached_property
 from pathlib import Path
 from typing import TYPE_CHECKING
 
-import fsspec
+from gcsfs import GCSFileSystem
 from google.cloud import bigquery
 from singer_sdk import SQLStream
 from singer_sdk.helpers._batch import JSONLinesEncoding, SDKBatchMessage
@@ -20,7 +20,6 @@ from singer_sdk.helpers._batch import JSONLinesEncoding, SDKBatchMessage
 from tap_bigquery.connector import BigQueryConnector
 
 if TYPE_CHECKING:
-    from gcsfs import GCSFileSystem
     from singer_sdk.helpers import types
 
 
@@ -122,7 +121,7 @@ class BigQueryStream(SQLStream):
             (extract_job.ended - extract_job.started).total_seconds(),
         )
 
-        fs: GCSFileSystem = fsspec.filesystem("gs", token=self.client._credentials)  # noqa: SLF001
+        fs = GCSFileSystem("gs", token=self.client._credentials)  # noqa: SLF001
 
         tempdir = Path(tempfile.mkdtemp(prefix="tap-bigquery-"))
 

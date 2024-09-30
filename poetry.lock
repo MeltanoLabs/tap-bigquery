@@ -573,9 +573,6 @@ files = [
     {file = "fsspec-2024.9.0.tar.gz", hash = "sha256:4b0afb90c2f21832df142f292649035d80b421f60a9e1c027802e5a0da2b04e8"},
 ]
 
-[package.dependencies]
-gcsfs = {version = "*", optional = true, markers = "extra == \"gs\""}
-
 [package.extras]
 abfs = ["adlfs"]
 adl = ["adlfs"]
@@ -2226,4 +2223,4 @@ s3 = ["fs-s3fs"]
 [metadata]
 lock-version = "2.0"
 python-versions = ">=3.8,<3.13"
-content-hash = "ef5e2273260f54d648b8517ed0af56d9cdbf441f71f215ffab13c332bd632bca"
+content-hash = "c3bc8b9a14a14681488b398cce95226e73de227b1d3811b4531724860a85c3af"
