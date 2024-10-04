@@ -22,7 +22,7 @@ plugins:
     - name: google_storage_bucket
     - name: filter_schemas
       kind: array
-    - name: filter_datasets
+    - name: filter_tables
       kind: array
   loaders:
   - name: target-jsonl

@@ -44,19 +44,19 @@ class TapBigQuery(SQLTap):
             required=False,
             description=(
                 "If an array of schema names is provided, the tap will only process "
-                "the specified BigQuery schemas and ignore others. If left blank, the "
-                "tap automatically determines ALL available BigQuery schemas."
+                "the specified BigQuery schemas (datasets) and ignore others. If left "
+                " blank, the tap automatically determines ALL available schemas."
             ),
         ),
         th.Property(
-            "filter_datasets",
+            "filter_tables",
             th.ArrayType(th.StringType),
             required=False,
             description=(
-                "If an array of dataset names is provided, the tap will only process "
-                "the specified BigQuery datasets and ignore others. If left blank, the "
-                "tap automatically determines ALL available BigQuery datasets. Shell "
-                "patterns are supported."
+                "If an array of table names is provided, the tap will only process "
+                "the specified BigQuery tables and ignore others. If left blank, the "
+                "tap automatically determines ALL available tables. Shell patterns are "
+                "supported."
             ),
         ),
     ).to_dict()

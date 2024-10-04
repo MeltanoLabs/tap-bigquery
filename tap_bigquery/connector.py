@@ -272,7 +272,7 @@ class BigQueryConnector(SQLConnector):
                 schema_name,
             )
         ]
-        if table_patterns := self.config.get("filter_datasets"):
+        if table_patterns := self.config.get("filter_tables"):
             return [
                 o
                 for o in objects

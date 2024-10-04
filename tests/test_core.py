@@ -11,8 +11,8 @@ from tap_bigquery.connector import BigQueryConnector
 SAMPLE_CONFIG = {
     "project_id": "",
     "filter_schemas": [],
-    "filter_datasets": [],
-    "google_application_credentials": "MOCK"
+    "filter_tables": [],
+    "google_application_credentials": "MOCK",
 }
 
 def dump(sql, *multiparams, **params):
