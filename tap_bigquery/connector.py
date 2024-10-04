@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import fnmatch
 import json
 import typing as t
 
@@ -271,9 +272,12 @@ class BigQueryConnector(SQLConnector):
                 schema_name,
             )
         ]
-        if "filter_datasets" in self.config and len(self.config["filter_datasets"]) != 0:
-            tables = self.config["filter_datasets"]
-            return [object for object in objects if object[0] in tables]
+        if table_patterns := self.config.get("filter_datasets"):
+            return [
+                o
+                for o in objects
+                if any(fnmatch.fnmatch(o[0], p) for p in table_patterns)
+            ]
 
         return objects
 
