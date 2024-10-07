@@ -18,7 +18,6 @@ class TapBigQuery(SQLTap):
             "project_id",
             th.StringType,
             required=True,
-            secret=False,
             description="GCP Project",
         ),
         th.Property(
@@ -34,14 +33,11 @@ class TapBigQuery(SQLTap):
         th.Property(
             "google_storage_bucket",
             th.StringType,
-            required=False,
-            secret=False,
             description="An optional Google Storage Bucket, when supplied a file based extract will be used.",
         ),
         th.Property(
             "filter_schemas",
             th.ArrayType(th.StringType),
-            required=False,
             description=(
                 "If an array of schema names is provided, the tap will only process "
                 "the specified BigQuery schemas (datasets) and ignore others. If left "
@@ -51,7 +47,6 @@ class TapBigQuery(SQLTap):
         th.Property(
             "filter_tables",
             th.ArrayType(th.StringType),
-            required=False,
             description=(
                 "If an array of table names is provided, the tap will only process "
                 "the specified BigQuery tables and ignore others. If left blank, the "
