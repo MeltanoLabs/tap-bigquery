@@ -1,6 +1,6 @@
 [tool.poetry]
-name = "tap-bigquery"
-version = "0.1.0"
+name = "meltanolabs-tap-bigquery"
+version = "0.0.1"
 description = "`tap-bigquery` is a Singer tap for BigQuery, built with the Meltano Singer SDK."
 readme = "README.md"
 authors = ["Pat Nadolny <firstname.lastname@example.com>", "Aaron Phethean <aphethean@matatika.com>"]
