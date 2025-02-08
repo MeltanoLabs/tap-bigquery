@@ -1,0 +1,19 @@
+{
+    "version": "0.2.0",
+    "configurations": [
+        {
+            "name": "tap-bigquery",
+            "type": "debugpy",
+            "request": "launch",
+            "cwd": "${workspaceFolder}",
+            "program": "tap_bigquery",
+            "justMyCode": false,
+            "args": [
+                "--config",
+                "ENV",
+                "--catalog",
+                "./catalog.json",
+            ],
+        },
+    ]
+}

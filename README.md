@@ -30,7 +30,7 @@ Built with the [Meltano Singer SDK](https://sdk.meltano.com).
 A full list of supported settings and capabilities is available by running: `tap-bigquery --about`
 
 
-(meltanolabs-tap-bigquery-py3.9) Patricks-MBP:tap-bigquery pnadolny$ poetry run tap-bigquery --about --format=markdown
+$ poetry run tap-bigquery --about --format=markdown
 # `tap-bigquery`
 
 Google BigQuery tap.
