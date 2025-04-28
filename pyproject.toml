@@ -3,7 +3,7 @@ name = "meltanolabs-tap-bigquery"
 version = "0.0.1"
 description = "`tap-bigquery` is a Singer tap for BigQuery, built with the Meltano Singer SDK."
 readme = "README.md"
-authors = ["Pat Nadolny <firstname.lastname@example.com>"]
+authors = ["Pat Nadolny <firstname.lastname@example.com>", "Aaron Phethean <aphethean@matatika.com>"]
 keywords = [
     "ELT",
     "BigQuery",
@@ -13,14 +13,16 @@ packages = [
 ]
 
 [tool.poetry.dependencies]
-python = "<3.12,>=3.7.1"
-singer-sdk = { version="^0.31.1" }
+python = ">=3.9,<3.13"
+singer-sdk = "^0.41.0"
 fs-s3fs = { version = "^1.1.1", optional = true }
 sqlalchemy-bigquery = "^1.8.0"
+google-cloud-bigquery = "^3.25.0"
+gcsfs = "^2024.9.0.post1"
 
 [tool.poetry.group.dev.dependencies]
 pytest = "^7.4.4"
-singer-sdk = { version="^0.31.1", extras = ["testing"] }
+singer-sdk = { version="^0.41.0", extras = ["testing"] }
 
 [tool.poetry.extras]
 s3 = ["fs-s3fs"]
@@ -56,3 +58,4 @@ build-backend = "poetry.core.masonry.api"
 [tool.poetry.scripts]
 # CLI declaration
 tap-bigquery = 'tap_bigquery.tap:TapBigQuery.cli'
+
