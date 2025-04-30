@@ -14,7 +14,7 @@ packages = [
 
 [tool.poetry.dependencies]
 python = ">=3.9,<3.13"
-singer-sdk = "^0.41.0"
+singer-sdk = "^0.45.11"
 fs-s3fs = { version = "^1.1.1", optional = true }
 sqlalchemy-bigquery = "^1.14.0"
 google-cloud-bigquery = "^3.31.0"
@@ -22,7 +22,7 @@ gcsfs = "^2025.3.2"
 
 [tool.poetry.group.dev.dependencies]
 pytest = "^8.3.5"
-singer-sdk = { version="^0.41.0", extras = ["testing"] }
+singer-sdk = { version="^0.45.11", extras = ["testing"] }
 
 [tool.poetry.extras]
 s3 = ["fs-s3fs"]
