@@ -2208,14 +2208,14 @@ sqlcipher = ["sqlcipher3_binary"]
 
 [[package]]
 name = "sqlalchemy-bigquery"
-version = "1.14.0"
+version = "1.14.1"
 description = "SQLAlchemy dialect for BigQuery"
 optional = false
 python-versions = "<3.13,>=3.8"
 groups = ["main"]
 files = [
-    {file = "sqlalchemy_bigquery-1.14.0-py3-none-any.whl", hash = "sha256:679cfbd66fb2362bd7db3364fbf72c9456b309546605b2e6b255a1693e590b84"},
-    {file = "sqlalchemy_bigquery-1.14.0.tar.gz", hash = "sha256:bc8ec4a64b0df3ecf018c3fa60c6341f00c7df5a122f827a689dbbb55429c8af"},
+    {file = "sqlalchemy_bigquery-1.14.1-py3-none-any.whl", hash = "sha256:7a2906a0b799e6be2c191354794c198645d1dfb958f71a4a411c366902b2b57d"},
+    {file = "sqlalchemy_bigquery-1.14.1.tar.gz", hash = "sha256:71025dad59394e3571371009419dcc9c54b2886d16c0172548317844ea1f17b8"},
 ]
 
 [package.dependencies]
@@ -2433,4 +2433,4 @@ s3 = ["fs-s3fs"]
 [metadata]
 lock-version = "2.1"
 python-versions = ">=3.9,<3.13"
-content-hash = "c21cbc0ed536ffb74c41bf2e587604f3af36898bbc45c564e131591849e553c1"
+content-hash = "2e86459015232f5900e165b887e137949d8feff373836921472548c4df53af6e"

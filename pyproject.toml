@@ -16,7 +16,7 @@ packages = [
 python = ">=3.9,<3.13"
 singer-sdk = "^0.46.0"
 fs-s3fs = { version = "^1.1.1", optional = true }
-sqlalchemy-bigquery = "^1.14.0"
+sqlalchemy-bigquery = "^1.14.1"
 google-cloud-bigquery = "^3.31.0"
 gcsfs = "^2025.3.2"
 
