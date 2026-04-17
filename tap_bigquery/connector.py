@@ -9,7 +9,7 @@ import typing as t
 import sqlalchemy
 from singer_sdk import SQLConnector
 from singer_sdk import typing as th  # JSON schema typing helpers
-from singer_sdk._singerlib import CatalogEntry, MetadataMapping, Schema
+from singer_sdk.singerlib import CatalogEntry, MetadataMapping, Schema
 from sqlalchemy_bigquery import (
     ARRAY,
     FLOAT,
@@ -167,6 +167,10 @@ class BigQueryConnector(SQLConnector):
         schema_name: str,
         table_name: str,
         is_view: bool,  # noqa: FBT001
+        *,
+        reflected_columns: list | None = None,
+        reflected_pk: dict | None = None,
+        reflected_indices: list | None = None,
     ) -> CatalogEntry:
         """Create `CatalogEntry` object for the given table or a view.
 
@@ -176,6 +180,9 @@ class BigQueryConnector(SQLConnector):
             schema_name: Schema name to inspect
             table_name: Name of the table or a view
             is_view: Flag whether this object is a view, returned by `get_object_names`
+            reflected_columns: Pre-reflected column information
+            reflected_pk: Pre-reflected primary key constraint
+            reflected_indices: Pre-reflected index information
 
         Returns:
             `CatalogEntry` object for the given table or a view
@@ -185,15 +192,16 @@ class BigQueryConnector(SQLConnector):
 
         # Detect key properties
         possible_primary_keys: list[list[str]] = []
-        pk_def = inspected.get_pk_constraint(table_name, schema=schema_name)
+        pk_def = reflected_pk if reflected_pk is not None else inspected.get_pk_constraint(table_name, schema=schema_name)
         if pk_def and "constrained_columns" in pk_def:
             possible_primary_keys.append(pk_def["constrained_columns"])
 
         # An element of the columns list is ``None`` if it's an expression and is
         # returned in the ``expressions`` list of the reflected index.
+        indices = reflected_indices if reflected_indices is not None else inspected.get_indexes(table_name, schema=schema_name)
         possible_primary_keys.extend(
             index_def["column_names"]  # type: ignore[misc]
-            for index_def in inspected.get_indexes(table_name, schema=schema_name)
+            for index_def in indices
             if index_def.get("unique", False)
         )
 
@@ -201,7 +209,8 @@ class BigQueryConnector(SQLConnector):
 
         # Initialize columns list
         table_schema = th.PropertiesList()
-        for column_def in inspected.get_columns(table_name, schema=schema_name):
+        columns = reflected_columns if reflected_columns is not None else inspected.get_columns(table_name, schema=schema_name)
+        for column_def in columns:
             column_name = column_def["name"]
             is_nullable = column_def.get("nullable", False)
             jsonschema_type: dict = self.to_jsonschema_type(column_name, column_def["type"])

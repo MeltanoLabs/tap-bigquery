@@ -8,7 +8,7 @@ from sqlalchemy import create_mock_engine, engine
 from sqlalchemy.types import String, Double, Float
 from sqlalchemy_bigquery import ARRAY
 
-from singer_sdk._singerlib import Catalog, CatalogEntry
+from singer_sdk.singerlib import Catalog, CatalogEntry
 from tap_bigquery.tap import TapBigQuery
 from tap_bigquery.client import BigQueryConnector
 
@@ -35,11 +35,11 @@ class TestClient(unittest.TestCase):
             ['mock_table'],
             {
                 'mock-schema.mock_table': [
-                    { 'name': 'double_field', 'type': Double },
-                    { 'name': 'double_infinity', 'type': Double },
-                    { 'name': 'float_field', 'type': Float },
-                    { 'name': 'float_infinity', 'type': Float },
-                    { 'name': 'array_field', 'type': ARRAY },
+                    { 'name': 'double_field', 'type': Double() },
+                    { 'name': 'double_infinity', 'type': Double() },
+                    { 'name': 'float_field', 'type': Float() },
+                    { 'name': 'float_infinity', 'type': Float() },
+                    { 'name': 'array_field', 'type': ARRAY(String) },
                 ],
             },
         )
@@ -81,8 +81,8 @@ class TestClient(unittest.TestCase):
             {
                 'mock-schema.mock_table': [
                     { 'name': 'string_field', 'type': String(50) },
-                    { 'name': 'float_field', 'type': Float },
-                    { 'name': 'float_none', 'type': Float },
+                    { 'name': 'float_field', 'type': Float() },
+                    { 'name': 'float_none', 'type': Float() },
                 ],
             },
         )

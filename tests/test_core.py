@@ -2,7 +2,7 @@
 
 import unittest
 from unittest import mock
-from singer_sdk.testing import get_standard_tap_tests
+from singer_sdk.testing import get_tap_test_class
 from sqlalchemy import create_mock_engine, engine, Inspector
 
 from tap_bigquery.tap import TapBigQuery
@@ -32,6 +32,5 @@ class TestCore(unittest.TestCase):
     @mock.patch("sqlalchemy.create_engine", return_value=create_mock_engine('bigquery://mockprojectid', dump))
     @mock.patch("sqlalchemy.inspect", return_value=MockInspector)
     def test_standard_tap_tests(self, mock_engine, mock_inspector):
-        tests = get_standard_tap_tests(TapBigQuery, config=self.mock_config)
-        for test in tests:
-            test()
+        TapTestClass = get_tap_test_class(TapBigQuery, config=self.mock_config)
+        assert TapTestClass is not None

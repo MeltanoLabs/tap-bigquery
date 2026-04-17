@@ -13,6 +13,9 @@ class MockInspector(Inspector):
         self.schema_names = schema_names
         self.table_names = table_names
         self.table_columns = table_columns
+        self._op_context_requires_connect = False
+        self.bind = None
+        self.info_cache = {}
 
     def get_schema_names(self)-> List[str]:
         return self.schema_names
@@ -31,3 +34,21 @@ class MockInspector(Inspector):
 
     def get_pk_constraint(self, table_name: str, schema: str) -> dict:
         return {}
+
+    def get_multi_pk_constraint(self, schema=None, filter_names=None, kind=None, scope=None, **kw):
+        return {
+            (schema, table): {}
+            for table in (self.table_names or [])
+        }
+
+    def get_multi_indexes(self, schema=None, filter_names=None, kind=None, scope=None, **kw):
+        return {
+            (schema, table): []
+            for table in (self.table_names or [])
+        }
+
+    def get_multi_columns(self, schema=None, filter_names=None, kind=None, scope=None, **kw):
+        return {
+            (schema, table): self.table_columns.get(f"{schema}.{table}", [])
+            for table in (self.table_names or [])
+        }
