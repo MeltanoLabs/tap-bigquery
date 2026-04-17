@@ -266,21 +266,26 @@ class BigQueryConnector(SQLConnector):
         inspected,
         schema_name: str,
     ) -> list[tuple[str, bool]]:
-        """Return discoverable object names."""
-        # Bigquery inspections returns table names in the form
-        # `schema_name.table_name` which later results in the project name
-        # override due to specifics in behavior of sqlalchemy-bigquery
-        #
-        # Let's strip `schema_name` prefix on the inspection
+        """Return discoverable object names.
+
+        The sqlalchemy-bigquery dialect returns table names in
+        ``schema_name.table_name`` format. We strip the schema prefix so
+        that downstream calls to ``_table_reference`` correctly resolve the
+        project ID from the engine URL rather than misinterpreting the bare
+        schema name as a project ID.
+        """
+        table_names = inspected.get_table_names(schema=schema_name)
+        try:
+            view_names = inspected.get_view_names(schema=schema_name)
+        except NotImplementedError:
+            view_names = []
 
         objects = [
-            (table_name.split(".")[-1], is_view)
-            for (table_name, is_view) in super().get_object_names(
-                engine,
-                inspected,
-                schema_name,
-            )
+            (name.split(".")[-1], False) for name in table_names
+        ] + [
+            (name.split(".")[-1], True) for name in view_names
         ]
+
         if table_patterns := self.config.get("filter_tables"):
             return [
                 o
@@ -289,6 +294,42 @@ class BigQueryConnector(SQLConnector):
             ]
 
         return objects
+
+    def discover_catalog_entries(
+        self,
+        *,
+        exclude_schemas: t.Sequence[str] = (),
+        reflect_indices: bool = True,
+    ) -> list[dict]:
+        """Return a list of catalog entries from discovery.
+
+        Overrides the base implementation to avoid get_multi_* Inspector
+        methods. The sqlalchemy-bigquery dialect returns table names in
+        dataset.table format from get_table_names, and when these are
+        passed back to get_columns/get_pk_constraint with a bare dataset
+        schema name, _table_reference misinterprets the schema as the
+        project ID. Using per-table reflection with stripped table names
+        (via get_object_names) avoids this issue.
+        """
+        result: list[dict] = []
+        engine = self._engine
+        inspected = sqlalchemy.inspect(engine)
+        for schema_name in self.get_schema_names(engine, inspected):
+            if schema_name in exclude_schemas:
+                continue
+            for table_name, is_view in self.get_object_names(
+                engine, inspected, schema_name
+            ):
+                result.append(
+                    self.discover_catalog_entry(
+                        engine,
+                        inspected,
+                        schema_name,
+                        table_name,
+                        is_view,
+                    ).to_dict()
+                )
+        return result
 
     def get_schema_names(self, engine: Engine, inspected: Inspector) -> list[str]:
         """Return a list of schema names in DB, or overrides with user-provided values.
