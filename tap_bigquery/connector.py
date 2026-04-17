@@ -9,7 +9,7 @@ import typing as t
 import sqlalchemy
 from singer_sdk import SQLConnector
 from singer_sdk import typing as th  # JSON schema typing helpers
-from singer_sdk._singerlib import CatalogEntry, MetadataMapping, Schema
+from singer_sdk.singerlib import CatalogEntry, MetadataMapping, Schema
 from sqlalchemy_bigquery import (
     ARRAY,
     FLOAT,
@@ -167,6 +167,10 @@ class BigQueryConnector(SQLConnector):
         schema_name: str,
         table_name: str,
         is_view: bool,  # noqa: FBT001
+        *,
+        reflected_columns: list | None = None,
+        reflected_pk: dict | None = None,
+        reflected_indices: list | None = None,
     ) -> CatalogEntry:
         """Create `CatalogEntry` object for the given table or a view.
 
@@ -176,6 +180,9 @@ class BigQueryConnector(SQLConnector):
             schema_name: Schema name to inspect
             table_name: Name of the table or a view
             is_view: Flag whether this object is a view, returned by `get_object_names`
+            reflected_columns: Pre-reflected column information
+            reflected_pk: Pre-reflected primary key constraint
+            reflected_indices: Pre-reflected index information
 
         Returns:
             `CatalogEntry` object for the given table or a view
@@ -185,15 +192,16 @@ class BigQueryConnector(SQLConnector):
 
         # Detect key properties
         possible_primary_keys: list[list[str]] = []
-        pk_def = inspected.get_pk_constraint(table_name, schema=schema_name)
+        pk_def = reflected_pk if reflected_pk is not None else inspected.get_pk_constraint(table_name, schema=schema_name)
         if pk_def and "constrained_columns" in pk_def:
             possible_primary_keys.append(pk_def["constrained_columns"])
 
         # An element of the columns list is ``None`` if it's an expression and is
         # returned in the ``expressions`` list of the reflected index.
+        indices = reflected_indices if reflected_indices is not None else inspected.get_indexes(table_name, schema=schema_name)
         possible_primary_keys.extend(
             index_def["column_names"]  # type: ignore[misc]
-            for index_def in inspected.get_indexes(table_name, schema=schema_name)
+            for index_def in indices
             if index_def.get("unique", False)
         )
 
@@ -201,7 +209,8 @@ class BigQueryConnector(SQLConnector):
 
         # Initialize columns list
         table_schema = th.PropertiesList()
-        for column_def in inspected.get_columns(table_name, schema=schema_name):
+        columns = reflected_columns if reflected_columns is not None else inspected.get_columns(table_name, schema=schema_name)
+        for column_def in columns:
             column_name = column_def["name"]
             is_nullable = column_def.get("nullable", False)
             jsonschema_type: dict = self.to_jsonschema_type(column_name, column_def["type"])
@@ -257,21 +266,26 @@ class BigQueryConnector(SQLConnector):
         inspected,
         schema_name: str,
     ) -> list[tuple[str, bool]]:
-        """Return discoverable object names."""
-        # Bigquery inspections returns table names in the form
-        # `schema_name.table_name` which later results in the project name
-        # override due to specifics in behavior of sqlalchemy-bigquery
-        #
-        # Let's strip `schema_name` prefix on the inspection
+        """Return discoverable object names.
+
+        The sqlalchemy-bigquery dialect returns table names in
+        ``schema_name.table_name`` format. We strip the schema prefix so
+        that downstream calls to ``_table_reference`` correctly resolve the
+        project ID from the engine URL rather than misinterpreting the bare
+        schema name as a project ID.
+        """
+        table_names = inspected.get_table_names(schema=schema_name)
+        try:
+            view_names = inspected.get_view_names(schema=schema_name)
+        except NotImplementedError:
+            view_names = []
 
         objects = [
-            (table_name.split(".")[-1], is_view)
-            for (table_name, is_view) in super().get_object_names(
-                engine,
-                inspected,
-                schema_name,
-            )
+            (name.split(".")[-1], False) for name in table_names
+        ] + [
+            (name.split(".")[-1], True) for name in view_names
         ]
+
         if table_patterns := self.config.get("filter_tables"):
             return [
                 o
@@ -280,6 +294,42 @@ class BigQueryConnector(SQLConnector):
             ]
 
         return objects
+
+    def discover_catalog_entries(
+        self,
+        *,
+        exclude_schemas: t.Sequence[str] = (),
+        reflect_indices: bool = True,
+    ) -> list[dict]:
+        """Return a list of catalog entries from discovery.
+
+        Overrides the base implementation to avoid get_multi_* Inspector
+        methods. The sqlalchemy-bigquery dialect returns table names in
+        dataset.table format from get_table_names, and when these are
+        passed back to get_columns/get_pk_constraint with a bare dataset
+        schema name, _table_reference misinterprets the schema as the
+        project ID. Using per-table reflection with stripped table names
+        (via get_object_names) avoids this issue.
+        """
+        result: list[dict] = []
+        engine = self._engine
+        inspected = sqlalchemy.inspect(engine)
+        for schema_name in self.get_schema_names(engine, inspected):
+            if schema_name in exclude_schemas:
+                continue
+            for table_name, is_view in self.get_object_names(
+                engine, inspected, schema_name
+            ):
+                result.append(
+                    self.discover_catalog_entry(
+                        engine,
+                        inspected,
+                        schema_name,
+                        table_name,
+                        is_view,
+                    ).to_dict()
+                )
+        return result
 
     def get_schema_names(self, engine: Engine, inspected: Inspector) -> list[str]:
         """Return a list of schema names in DB, or overrides with user-provided values.
