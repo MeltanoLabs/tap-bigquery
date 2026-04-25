@@ -12,6 +12,15 @@ class TapBigQuery(SQLTap):
     """Google BigQuery tap."""
 
     name = "tap-bigquery"
+    capabilities = [
+        "about",
+        "catalog",
+        "discover",
+        "state",
+        "stream-maps",
+        "schema-flattening",
+        "batch",
+    ]
 
     config_jsonschema = th.PropertiesList(
         th.Property(
@@ -26,9 +35,13 @@ class TapBigQuery(SQLTap):
                 th.StringType,
                 th.ObjectType(),
             ),
-            required=True,
+            required=False,
             secret=True,
-            description="JSON content or path to service account credentials.",
+            description=(
+                "Optional. JSON content or path to service account credentials. "
+                "If unset, Application Default Credentials (ADC) are used: "
+                "GOOGLE_APPLICATION_CREDENTIALS_STRING, GOOGLE_APPLICATION_CREDENTIALS, or workload identity (e.g. GKE/Airflow)."
+            ),
         ),
         th.Property(
             "google_storage_bucket",

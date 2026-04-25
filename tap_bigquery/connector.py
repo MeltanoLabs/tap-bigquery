@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import fnmatch
 import json
+import os
 import typing as t
 
 import sqlalchemy
@@ -29,6 +30,14 @@ if t.TYPE_CHECKING:
 class BigQueryConnector(SQLConnector):
     """Connects to the BigQuery SQL source."""
 
+    @staticmethod
+    def _normalize_table_name(schema_name: str, table_name: str) -> str:
+        """Strip duplicated schema prefixes from table names."""
+        schema_prefix = f"{schema_name}."
+        if table_name.startswith(schema_prefix):
+            return table_name[len(schema_prefix):]
+        return table_name
+
     def create_engine(self) -> Engine:
         """Creates and returns a new engine. Do not call outside of _engine.
 
@@ -43,10 +52,20 @@ class BigQueryConnector(SQLConnector):
         Returns:
             A new SQLAlchemy Engine.
         """
-        credentials : str | dict = self.config.get("google_application_credentials")
+        credentials: str | dict | None = self.config.get("google_application_credentials")
+        if not credentials and os.environ.get("GOOGLE_APPLICATION_CREDENTIALS_STRING"):
+            credentials = os.environ["GOOGLE_APPLICATION_CREDENTIALS_STRING"]
+        if not credentials and os.environ.get("GOOGLE_APPLICATION_CREDENTIALS"):
+            return sqlalchemy.create_engine(
+                self.sqlalchemy_url,
+                echo=False,
+                credentials_path=os.environ["GOOGLE_APPLICATION_CREDENTIALS"],
+            )
 
         if credentials:
             try:
+                # Note: json_serializer/json_deserializer commented out - not needed for
+                # BigQuery dialect as it handles JSON types natively
                 return sqlalchemy.create_engine(
                     self.sqlalchemy_url,
                     echo=False,
@@ -55,27 +74,18 @@ class BigQueryConnector(SQLConnector):
                         if isinstance(credentials, str)
                         else credentials
                     ),
-                    # json_serializer=self.serialize_json,
-                    # json_deserializer=self.deserialize_json,
                 )
             except (TypeError, json.decoder.JSONDecodeError):
-                self.logger.warning(
-                    "'google_application_credentials' not valid json trying path",
+                self.logger.debug(
+                    "Credentials not valid JSON (trying as file path)",
                 )
                 return sqlalchemy.create_engine(
                     self.sqlalchemy_url,
                     echo=False,
                     credentials_path=credentials,
-                    # json_serializer=self.serialize_json,
-                    # json_deserializer=self.deserialize_json,
                 )
-        else:
-            return sqlalchemy.create_engine(
-                self.sqlalchemy_url,
-                echo=False,
-                # json_serializer=self.serialize_json,
-                # json_deserializer=self.deserialize_json,
-            )
+        # No credentials: use Application Default Credentials (ADC)
+        return sqlalchemy.create_engine(self.sqlalchemy_url, echo=False)
 
     def to_array_type(
         self,
@@ -180,6 +190,8 @@ class BigQueryConnector(SQLConnector):
         Returns:
             `CatalogEntry` object for the given table or a view
         """
+        table_name = self._normalize_table_name(schema_name, table_name)
+
         # Initialize unique stream name
         unique_stream_id = f"{schema_name}-{table_name}"
 
@@ -247,6 +259,66 @@ class BigQueryConnector(SQLConnector):
             replication_key=None,  # Must be defined by user
         )
 
+    def discover_catalog_entries(
+        self,
+        *args,
+        **kwargs,
+    ) -> list[dict[str, t.Any]]:
+        """Discover catalog entries using per-table reflection.
+
+        BigQuery's SQLAlchemy dialect can return table names prefixed with the
+        dataset, and bulk reflection may then resolve dataset names as project
+        IDs. Discovering tables one-by-one avoids that path and keeps the
+        project ID stable.
+        """
+        del args, kwargs  # Connector discovery does not require passthrough args.
+        engine = self._engine
+        inspected = sqlalchemy.inspect(engine)
+
+        catalog_entries: list[dict[str, t.Any]] = []
+        for schema_name in self.get_schema_names(engine, inspected):
+            for table_name, is_view in self.get_object_names(
+                engine,
+                inspected,
+                schema_name,
+            ):
+                normalized_table_name = self._normalize_table_name(
+                    schema_name,
+                    table_name,
+                )
+                entry_dict = self.discover_catalog_entry(
+                    engine=engine,
+                    inspected=inspected,
+                    schema_name=schema_name,
+                    table_name=normalized_table_name,
+                    is_view=is_view,
+                ).to_dict()
+                self._ensure_selected_by_default(entry_dict)
+                catalog_entries.append(entry_dict)
+
+        self.logger.info(
+            "Discovered %d BigQuery stream(s): %s",
+            len(catalog_entries),
+            [entry.get("tap_stream_id") for entry in catalog_entries],
+        )
+        return catalog_entries
+
+    @staticmethod
+    def _ensure_selected_by_default(catalog_entry: dict[str, t.Any]) -> None:
+        """Force stream-level selected-by-default metadata on discovered entries."""
+        metadata_entries = catalog_entry.get("metadata", [])
+        for metadata_entry in metadata_entries:
+            if metadata_entry.get("breadcrumb") == []:
+                metadata_entry.setdefault("metadata", {})["selected-by-default"] = True
+                return
+
+        metadata_entries.append(
+            {
+                "breadcrumb": [],
+                "metadata": {"selected-by-default": True},
+            },
+        )
+        catalog_entry["metadata"] = metadata_entries
     def get_sqlalchemy_url(self, config: dict) -> str:
         """Concatenate a SQLAlchemy URL for use in connecting to the source."""
         return f"bigquery://{config['project_id']}"
@@ -265,7 +337,7 @@ class BigQueryConnector(SQLConnector):
         # Let's strip `schema_name` prefix on the inspection
 
         objects = [
-            (table_name.split(".")[-1], is_view)
+            (self._normalize_table_name(schema_name, table_name), is_view)
             for (table_name, is_view) in super().get_object_names(
                 engine,
                 inspected,

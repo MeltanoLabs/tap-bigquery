@@ -70,9 +70,14 @@ environment variable is set either in the terminal context or in the `.env` file
 
 ### Source Authentication and Authorization
 
-<!--
-Developer TODO: If your tap requires special access on the source system, or any special authentication requirements, provide those here.
--->
+Credential resolution order (Application Default Credentials–style):
+
+1. **Config** `google_application_credentials` – JSON string, JSON object, or path to a service account key file.
+2. **Env** `GOOGLE_APPLICATION_CREDENTIALS_STRING` – JSON string of the service account key (e.g. secret injected by Airflow).
+3. **Env** `GOOGLE_APPLICATION_CREDENTIALS` – Path to a service account key file.
+4. **Application Default Credentials (ADC)** – No config or env set: workload identity (GKE/Cloud Run/Airflow pod), `gcloud auth application-default login`, or metadata server.
+
+For Airflow/GKE with an attached service account, omit `google_application_credentials` and do not set the env vars; the tap uses ADC.
 
 ## Usage
 

@@ -7,12 +7,14 @@ from __future__ import annotations
 
 import json
 import math
+import os
 import tempfile
 from functools import cached_property
 from pathlib import Path
 from typing import TYPE_CHECKING
 
 from gcsfs import GCSFileSystem
+from google.auth import default as default_credentials
 from google.cloud import bigquery
 from singer_sdk import SQLStream
 from singer_sdk.helpers._batch import JSONLinesEncoding
@@ -22,28 +24,63 @@ from tap_bigquery.connector import BigQueryConnector
 if TYPE_CHECKING:
     from singer_sdk.helpers import types
 
+CREDENTIALS_STRING_ENV = "GOOGLE_APPLICATION_CREDENTIALS_STRING"
+CREDENTIALS_PATH_ENV = "GOOGLE_APPLICATION_CREDENTIALS"
+
+
+def _get_bigquery_client(config: dict, project_id: str | None = None) -> bigquery.Client:
+    """Build a BigQuery client. Credential resolution order:
+
+    1. config['google_application_credentials'] (JSON or path)
+    2. GOOGLE_APPLICATION_CREDENTIALS_STRING env (JSON)
+    3. GOOGLE_APPLICATION_CREDENTIALS env (path)
+    4. Application Default Credentials (ADC) – workload identity, gcloud, etc.
+    """
+    import logging
+
+    logger = logging.getLogger(__name__)
+    credentials = config.get("google_application_credentials")
+    if not credentials and os.environ.get(CREDENTIALS_STRING_ENV):
+        credentials = os.environ[CREDENTIALS_STRING_ENV]
+    if not credentials and os.environ.get(CREDENTIALS_PATH_ENV):
+        return bigquery.Client.from_service_account_json(
+            os.environ[CREDENTIALS_PATH_ENV],
+            project=project_id,
+        )
+
+    if credentials:
+        try:
+            return bigquery.Client.from_service_account_info(
+                json.loads(credentials) if isinstance(credentials, str) else credentials,
+                project=project_id,
+            )
+        except (TypeError, json.decoder.JSONDecodeError) as e:
+            logger.debug(
+                "Credentials not valid JSON (trying as file path): %s", str(e)
+            )
+        return bigquery.Client.from_service_account_json(credentials, project=project_id)
+
+    creds, default_project = default_credentials(
+        scopes=["https://www.googleapis.com/auth/bigquery"]
+    )
+    return bigquery.Client(
+        credentials=creds,
+        project=project_id or default_project,
+    )
+
 
 class BigQueryStream(SQLStream):
     """Stream class for BigQuery streams."""
 
     connector_class = BigQueryConnector
+    selected_by_default = True
 
     @cached_property
     def client(self):
-        credentials: str | dict = self.config["google_application_credentials"]
-
-        try:
-            return bigquery.Client.from_service_account_info(
-                json.loads(credentials)
-                if isinstance(credentials, str)
-                else credentials,
-            )
-        except (TypeError, json.decoder.JSONDecodeError):
-            self.logger.debug(
-                "`google_application_credentials` is not valid JSON, trying as path",
-            )
-
-        return bigquery.Client.from_service_account_json(credentials)
+        return _get_bigquery_client(
+            self.config,
+            project_id=self.config.get("project_id"),
+        )
 
     def prepare_serialisation(self, _dict, _keychain = []):
         """
